@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { detectLang, normalizeLang } from "../../shared/lang";
 import { Button } from "../shared/components";
 import { t } from "../shared/i18n";
+import { playDoubaoSpeech } from "./doubao-speech";
+import { useSpeechConfig } from "./speech-settings";
 
 interface SpeechButtonProps {
   text: string;
@@ -17,8 +19,7 @@ const SPEECH_RATES = [0.5, 0.6, 0.75, 0.8, 0.9, 1, 1.25, 1.5, 2];
 
 interface ActiveSpeech {
   owner: symbol;
-  utterance: SpeechSynthesisUtterance;
-  engine: SpeechSynthesis;
+  cancel: () => void;
 }
 
 let activeSpeech: ActiveSpeech | undefined;
@@ -32,9 +33,7 @@ function stopSpeech(owner?: symbol): void {
   if (!activeSpeech || (owner && activeSpeech.owner !== owner)) return;
   const previous = activeSpeech;
   activeSpeech = undefined;
-  previous.utterance.onend = null;
-  previous.utterance.onerror = null;
-  previous.engine.cancel();
+  previous.cancel();
   notifyListeners();
 }
 
@@ -114,17 +113,23 @@ export function SpeechButton({
   const owner = useRef(Symbol("side-panel-speech")).current;
   const [active, setActive] = useState(false);
   const [error, setError] = useState("");
+  const { config: speechConfig } = useSpeechConfig();
   const engine = speechEngine();
   const [voices, setVoices] = useState(() => engine?.getVoices() ?? []);
   const speechLanguage = languageForSpeech(text, language);
   const voice = voiceForLanguage(voices, speechLanguage);
-  const unavailable = !engine
-    ? "当前浏览器不支持朗读。"
-    : !voices.length
-      ? "系统语音正在加载；若一直不可用，请检查系统语音设置。"
-      : !voice
-        ? "系统未安装此语言的本地语音，请在系统语音设置中添加。"
-        : undefined;
+  const unavailable =
+    speechConfig.provider === "doubao"
+      ? !speechConfig.apiKey
+        ? "请在侧边栏设置中配置豆包语音 API Key。"
+        : undefined
+      : !engine
+        ? "当前浏览器不支持朗读。"
+        : !voices.length
+          ? "系统语音正在加载；若一直不可用，请检查系统语音设置。"
+          : !voice
+            ? "系统未安装此语言的本地语音，请在系统语音设置中添加。"
+            : undefined;
 
   useEffect(() => {
     const update = () => setActive(activeSpeech?.owner === owner);
@@ -147,18 +152,60 @@ export function SpeechButton({
   useEffect(() => {
     setError("");
     return () => stopSpeech(owner);
-  }, [owner, text, language]);
+  }, [
+    owner,
+    text,
+    language,
+    speechConfig.provider,
+    speechConfig.apiKey,
+    speechConfig.speaker,
+  ]);
 
   function startSpeech(nextRate: number): void {
-    if (!engine || !voice || !text.trim() || disabled) return;
+    if (!text.trim() || disabled) return;
 
     stopSpeech();
     setError("");
+    if (speechConfig.provider === "doubao") {
+      if (!speechConfig.apiKey) return;
+      try {
+        const playback = playDoubaoSpeech(text.trim(), nextRate, speechConfig);
+        const speech = { owner, cancel: playback.cancel };
+        activeSpeech = speech;
+        notifyListeners();
+        void playback.done.then(
+          () => {
+            if (activeSpeech !== speech) return;
+            activeSpeech = undefined;
+            notifyListeners();
+          },
+          (cause: unknown) => {
+            if (activeSpeech !== speech) return;
+            activeSpeech = undefined;
+            notifyListeners();
+            setError(
+              cause instanceof Error ? cause.message : "豆包朗读失败，请重试。",
+            );
+          },
+        );
+      } catch {
+        setError("无法启动豆包朗读，请检查声音设置。");
+      }
+      return;
+    }
+    if (!engine || !voice) return;
     const utterance = new SpeechSynthesisUtterance(text.trim());
     utterance.lang = speechLanguage;
     utterance.voice = voice;
     utterance.rate = nextRate;
-    const speech = { owner, utterance, engine };
+    const speech = {
+      owner,
+      cancel: () => {
+        utterance.onend = null;
+        utterance.onerror = null;
+        engine.cancel();
+      },
+    };
     activeSpeech = speech;
     utterance.onend = () => {
       if (activeSpeech !== speech) return;
@@ -199,7 +246,12 @@ export function SpeechButton({
           aria-label={active ? `停止${label}` : label}
           aria-pressed={active}
           disabled={!active && (disabled || !text.trim() || !!unavailable)}
-          title={unavailable ?? label}
+          title={
+            unavailable ??
+            (speechConfig.provider === "doubao"
+              ? `${label}（豆包 AI 语音）`
+              : label)
+          }
           onClick={toggleSpeech}
         >
           {active ? "停止朗读" : "朗读"}

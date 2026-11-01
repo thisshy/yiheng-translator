@@ -41,6 +41,7 @@ import {
   type ImageAttachment,
 } from "./images";
 import { SpeechButton } from "./speech";
+import { SpeechSettings } from "./speech-settings";
 import { hasMath, MathText } from "./math-text";
 import { loadDraft, saveDraft, type TextTool } from "./state";
 import "../shared/styles.css";
@@ -582,6 +583,7 @@ export function SidePanel({
           class="side-settings"
           aria-label={t("side.settings")}
         >
+          <SpeechSettings />
           <Field label={t("popup.service")} htmlFor="side-service">
             <Select
               id="side-service"

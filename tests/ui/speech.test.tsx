@@ -6,6 +6,14 @@ import {
   screen,
 } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+vi.mock("webextension-polyfill", () => ({
+  default: {
+    storage: {
+      local: { get: vi.fn().mockResolvedValue({}) },
+      onChanged: { addListener: vi.fn(), removeListener: vi.fn() },
+    },
+  },
+}));
 import { SpeechButton } from "../../src/ui/sidepanel/speech";
 
 class MockUtterance {
