@@ -3,6 +3,7 @@ import browser from "webextension-polyfill";
 import {
   CHATGPT_FALLBACK_MODELS,
   DEFAULT_CHATGPT_MODEL,
+  DEFAULT_CHATGPT_REASONING_EFFORT,
 } from "../../../shared/chatgpt-models";
 import type { AssistantRequest } from "../../../shared/k-assistant";
 import { assertAssistantImage } from "../../../shared/assistant-image";
@@ -280,9 +281,10 @@ export class ChatgptOauthService extends BaseService {
     this.model = options.model;
     this.promptSystem = options.promptSystem ?? options.prompt;
     this.promptUser = options.promptUser;
-    this.reasoningEffort = options.reasoningEffort ?? "low";
+    this.reasoningEffort =
+      options.reasoningEffort ?? DEFAULT_CHATGPT_REASONING_EFFORT;
     this.reasoningEffortAssistant =
-      options.reasoningEffortAssistant ?? "medium";
+      options.reasoningEffortAssistant ?? DEFAULT_CHATGPT_REASONING_EFFORT;
     this.timeoutMs = options.timeoutMs ?? 60_000;
     this.refusalPatterns = buildRefusalPatterns(options.ignoreResRegexs);
     this.onPartial = (request, emitCumulativeText, signal) =>

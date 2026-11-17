@@ -137,7 +137,7 @@ describe("configuration migration", () => {
 
   it("applies and validates ChatGPT reasoning defaults", () => {
     expect(serviceConfigSchema.parse({ kind: "chatgpt" })).toMatchObject({
-      reasoningEffort: "low",
+      reasoningEffort: "medium",
       reasoningEffortAssistant: "medium",
     });
     expect(() =>
@@ -146,6 +146,27 @@ describe("configuration migration", () => {
         reasoningEffort: "minimal",
       }),
     ).toThrow();
+  });
+
+  it("upgrades the previous Sol default without changing account settings", () => {
+    const migrated = migrateConfig({
+      version: 4,
+      services: {
+        chatgpt: {
+          kind: "chatgpt",
+          enabled: true,
+          model: "gpt-6.1-sol",
+          reasoningEffort: "low",
+          reasoningEffortAssistant: "high",
+        },
+      },
+    });
+    expect(migrated.services.chatgpt?.model).toBeUndefined();
+    expect(migrated.services.chatgpt).toMatchObject({
+      enabled: true,
+      reasoningEffort: "medium",
+      reasoningEffortAssistant: "high",
+    });
   });
 
   it("upgrades legacy phase-one UI fields without losing service settings", () => {
@@ -190,7 +211,7 @@ describe("configuration migration", () => {
     expect(migrated.services.chatgpt).toEqual({
       kind: "chatgpt",
       enabled: false,
-      reasoningEffort: "low",
+      reasoningEffort: "medium",
       reasoningEffortAssistant: "medium",
     });
     expect(migrated.shortcuts.toggleTranslatePage).toBe("Alt+Q");
@@ -223,7 +244,7 @@ describe("configuration migration", () => {
     expect(migrated.services.chatgpt).toMatchObject({
       enabled: true,
       model: "gpt-5.5",
-      reasoningEffort: "low",
+      reasoningEffort: "medium",
       reasoningEffortAssistant: "medium",
     });
   });

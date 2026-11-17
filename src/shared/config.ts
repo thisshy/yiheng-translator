@@ -1,6 +1,7 @@
 import browser from "webextension-polyfill";
 import { z } from "zod";
 
+import { DEFAULT_CHATGPT_REASONING_EFFORT } from "./chatgpt-models";
 import {
   DEFAULT_AI_WRITING_PROMPTS,
   DEFAULT_INPUT_LANGUAGE_ALIASES,
@@ -10,7 +11,7 @@ import { DEFAULT_SUBTITLE_CONFIG, type SubtitleConfig } from "./subtitle-types";
 import type { Config, ConfigPatch, Rule, ServiceConfig } from "./types";
 
 /** Current persisted configuration format. */
-export const CONFIG_VERSION = 4;
+export const CONFIG_VERSION = 5;
 
 /** Storage key containing the complete configuration object. */
 export const CONFIG_STORAGE_KEY = "config";
@@ -117,8 +118,10 @@ export const serviceConfigSchema: z.ZodType<ServiceConfig> = z.preprocess(
     isRecord(value) && value.kind === "chatgpt"
       ? {
           ...value,
-          reasoningEffort: value.reasoningEffort ?? "low",
-          reasoningEffortAssistant: value.reasoningEffortAssistant ?? "medium",
+          reasoningEffort:
+            value.reasoningEffort ?? DEFAULT_CHATGPT_REASONING_EFFORT,
+          reasoningEffortAssistant:
+            value.reasoningEffortAssistant ?? DEFAULT_CHATGPT_REASONING_EFFORT,
         }
       : value,
   serviceConfigBaseSchema,
@@ -177,8 +180,8 @@ export const DEFAULT_SERVICES: Record<string, ServiceConfig> = {
   chatgpt: {
     kind: "chatgpt",
     enabled: false,
-    reasoningEffort: "low",
-    reasoningEffortAssistant: "medium",
+    reasoningEffort: DEFAULT_CHATGPT_REASONING_EFFORT,
+    reasoningEffortAssistant: DEFAULT_CHATGPT_REASONING_EFFORT,
   },
   claude: { kind: "claude", enabled: false },
   gemini: { kind: "gemini", enabled: false },
@@ -593,6 +596,29 @@ registerConfigMigration(3, (config) => ({
     service: "chatgpt",
   },
 }));
+
+registerConfigMigration(4, (config) => {
+  const services = isRecord(config.services) ? config.services : {};
+  const chatgpt = services.chatgpt;
+  if (!isRecord(chatgpt) || (chatgpt.model && chatgpt.model !== "gpt-6.1-sol")) {
+    return { ...config, version: 5 };
+  }
+  return {
+    ...config,
+    version: 5,
+    services: {
+      ...services,
+      chatgpt: {
+        ...chatgpt,
+        model: undefined,
+        reasoningEffort:
+          chatgpt.reasoningEffort === "low"
+            ? DEFAULT_CHATGPT_REASONING_EFFORT
+            : chatgpt.reasoningEffort,
+      },
+    },
+  };
+});
 
 /** Upgrade unknown stored data and validate it as the current configuration. */
 export function migrateConfig(value: unknown): Config {

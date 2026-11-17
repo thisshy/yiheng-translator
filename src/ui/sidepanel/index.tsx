@@ -6,7 +6,10 @@ import {
   supportedEfforts,
 } from "../../background/services/chatgpt-oauth/reasoning";
 import { getModels } from "../../background/services/service-fields";
-import { DEFAULT_CHATGPT_MODEL } from "../../shared/chatgpt-models";
+import {
+  DEFAULT_CHATGPT_MODEL,
+  DEFAULT_CHATGPT_REASONING_EFFORT,
+} from "../../shared/chatgpt-models";
 import {
   createAssistantClient,
   runAssistant,
@@ -615,11 +618,13 @@ export function SidePanel({
                   ...(service === "chatgpt"
                     ? {
                         reasoningEffort: clampEffort(
-                          serviceConfig?.reasoningEffort ?? "high",
+                          serviceConfig?.reasoningEffort ??
+                            DEFAULT_CHATGPT_REASONING_EFFORT,
                           next,
                         ),
                         reasoningEffortAssistant: clampEffort(
-                          serviceConfig?.reasoningEffortAssistant ?? "high",
+                          serviceConfig?.reasoningEffortAssistant ??
+                            DEFAULT_CHATGPT_REASONING_EFFORT,
                           next,
                         ),
                       }
@@ -640,7 +645,8 @@ export function SidePanel({
                 value={clampEffort(
                   (tool === "translate"
                     ? serviceConfig?.reasoningEffort
-                    : serviceConfig?.reasoningEffortAssistant) ?? "high",
+                    : serviceConfig?.reasoningEffortAssistant) ??
+                    DEFAULT_CHATGPT_REASONING_EFFORT,
                   model,
                 )}
                 disabled={working}

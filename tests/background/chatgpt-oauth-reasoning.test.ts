@@ -25,7 +25,7 @@ describe("ChatGPT reasoning effort", () => {
     ...["gpt-6-sol", "gpt-6-luna"].flatMap((model) =>
       EFFORT_LADDER.map((level) => [level, model, level] as const),
     ),
-    ...["gpt-6.1-sol", "gpt-6-astra"].flatMap((model) =>
+    ...["gpt-6.2-sol", "gpt-6.1-sol", "gpt-6-astra"].flatMap((model) =>
       EFFORT_LADDER.map(
         (level) => [level, model, level === "none" ? "low" : level] as const,
       ),

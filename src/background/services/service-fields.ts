@@ -176,8 +176,8 @@ export function serviceFields(
               ? {
                   hint:
                     locale === "en"
-                      ? "Low is recommended for translation; None is available on supported models."
-                      : "翻译建议选“低”；支持的模型可选“无”。",
+                      ? "Translation defaults to Medium."
+                      : "翻译默认使用中等思考强度。",
                 }
               : {}),
           }

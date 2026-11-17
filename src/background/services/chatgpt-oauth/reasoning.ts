@@ -18,7 +18,7 @@ export function supportedEfforts(
   model: string | undefined,
 ): readonly ReasoningEffort[] {
   const normalized = model?.toLowerCase() ?? "";
-  if (/^gpt-(?:6\.1-sol|6-astra)(?:-|$)/.test(normalized)) {
+  if (/^gpt-(?:6\.[12]-sol|6-astra)(?:-|$)/.test(normalized)) {
     return REASONING_REQUIRED_EFFORTS;
   }
   return /^gpt-(?:6-(?:sol|luna)|5\.6(?:[.-]|$))/.test(normalized)

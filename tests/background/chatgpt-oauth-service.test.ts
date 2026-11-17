@@ -120,13 +120,13 @@ describe("ChatgptOauthService", () => {
 
   it("selects the latest Sol only when available in the account catalog", () => {
     expect(
-      selectDefaultChatgptModel(["gpt-6-luna", "gpt-6.1-sol", "gpt-5.6-sol"]),
-    ).toBe("gpt-6.1-sol");
+      selectDefaultChatgptModel(["gpt-6-luna", "gpt-6.1-sol", "gpt-6.2-sol"]),
+    ).toBe("gpt-6.2-sol");
     expect(selectDefaultChatgptModel(["gpt-6-luna"])).toBe("gpt-6-luna");
     expect(selectDefaultChatgptModel(["account-specific-model"])).toBe(
       "account-specific-model",
     );
-    expect(selectDefaultChatgptModel([])).toBe("gpt-6.1-sol");
+    expect(selectDefaultChatgptModel([])).toBe("gpt-6.2-sol");
   });
 
   it("probes and caches the account model catalog", async () => {
@@ -205,7 +205,7 @@ describe("ChatgptOauthService", () => {
     const body = JSON.parse(String(init.body)) as Record<string, unknown>;
     expect(body).toMatchObject({
       model: "gpt-5.4-mini",
-      reasoning: { effort: "low" },
+      reasoning: { effort: "medium" },
       store: false,
       stream: true,
     });

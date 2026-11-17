@@ -11,6 +11,10 @@ import {
 } from "../../background/services";
 import { LANGUAGE_CODES } from "../../shared/lang";
 import {
+  DEFAULT_CHATGPT_MODEL,
+  DEFAULT_CHATGPT_REASONING_EFFORT,
+} from "../../shared/chatgpt-models";
+import {
   sendToBackground,
   type ChatgptOauthStatus,
   type ServiceTestResult,
@@ -597,6 +601,11 @@ function ServiceField({
             : descriptor.type
       }
       list={modelOptions?.length ? `${id}-models` : undefined}
+      placeholder={
+        serviceId === "chatgpt" && descriptor.type === "model"
+          ? DEFAULT_CHATGPT_MODEL
+          : undefined
+      }
       value={value}
       onInput={(event) => onChange(event.currentTarget.value)}
     />
@@ -631,9 +640,11 @@ function serviceFieldValue(
   key: ServiceFieldDescriptor["name"],
 ): string {
   if (key === "auth") return "";
-  if (key === "reasoningEffort") return service.reasoningEffort ?? "low";
+  if (key === "reasoningEffort") {
+    return service.reasoningEffort ?? DEFAULT_CHATGPT_REASONING_EFFORT;
+  }
   if (key === "reasoningEffortAssistant") {
-    return service.reasoningEffortAssistant ?? "medium";
+    return service.reasoningEffortAssistant ?? DEFAULT_CHATGPT_REASONING_EFFORT;
   }
   const value = service[key];
   if (key === "models") return service.models?.join("\n") ?? "";
