@@ -374,6 +374,9 @@ body {
   display: flex;
   flex-direction: column;
 }
+.side-source-card:not(.side-has-image) .side-source-body:has(> .side-source-editor:not([hidden])) {
+  overflow: clip;
+}
 .side-source-card textarea {
   display: block;
   width: 100%;
@@ -391,10 +394,14 @@ body {
 }
 .side-source-card:not(.side-has-image) .side-source-editor {
   flex: 1;
+  min-height: 0;
 }
 #side-source {
   position: relative;
   flex: 1;
+}
+.side-source-card:not(.side-has-image) #side-source {
+  min-height: 0;
 }
 #side-source,
 .side-source-mirror {
@@ -418,6 +425,7 @@ body {
   display: none;
 }
 .side-source-preview {
+  flex-shrink: 0;
   padding: 18px var(--pane-pad);
 }
 .side-math-text {

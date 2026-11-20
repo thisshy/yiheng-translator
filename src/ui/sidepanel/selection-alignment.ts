@@ -1,5 +1,5 @@
 import type { RefObject } from "preact";
-import { useEffect } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import { runAssistant, type AssistantClient } from "../../shared/k-assistant";
 import type { GlossaryEntry } from "../../shared/types";
 import type { ParagraphPair, ReadingResult } from "./reading";
@@ -13,6 +13,11 @@ type Side = keyof ParagraphPair;
 type Bounds = { start: number; end: number };
 type Pick = Bounds & { paragraph: number };
 type Selection = { side: Side; picks: Pick[]; anchor?: number };
+type Alignment = {
+  reading: ReadingResult;
+  selection: Selection;
+  copyText?: string;
+};
 const opposite = (side: Side): Side =>
   side === "source" ? "translation" : "source";
 
@@ -198,7 +203,9 @@ export function useSelectionAlignment(
   client: AssistantClient,
   glossaries?: GlossaryEntry[],
 ) {
+  const [alignment, setAlignment] = useState<Alignment>();
   useEffect(() => {
+    setAlignment(undefined);
     const source = sourceBody.current;
     const result = resultBody.current;
     const editor = sourceEditor.current;
@@ -223,6 +230,7 @@ export function useSelectionAlignment(
     let editorValue: string | undefined;
     let offsets: Bounds[] = [];
     let previousKey = "";
+    let previousPreview = editor.hidden;
     let frame = 0;
     let timer = 0;
     let request: AbortController | undefined;
@@ -299,9 +307,14 @@ export function useSelectionAlignment(
       cache.set(key, bounds);
     };
 
-    const clear = () => {
+    const cancelLookup = () => {
       window.clearTimeout(timer);
+      timer = 0;
       request?.abort();
+      request = undefined;
+    };
+    const clear = () => {
+      cancelLookup();
       highlights.delete(TEXT_HIGHLIGHT);
       highlights.delete(PARAGRAPH_HIGHLIGHT);
       mirror.hidden = true;
@@ -360,13 +373,7 @@ export function useSelectionAlignment(
       if (!first) return;
 
       const pane =
-        target === "translation"
-          ? result
-          : inEditor
-            ? editor
-            : fullPreview && fullPreview.scrollHeight > fullPreview.clientHeight
-              ? fullPreview
-              : source;
+        target === "translation" ? result : inEditor ? editor : source;
       if (inEditor && source.scrollHeight > source.clientHeight) {
         const box = editor.getBoundingClientRect();
         const viewport = source.getBoundingClientRect();
@@ -379,21 +386,51 @@ export function useSelectionAlignment(
 
     const refresh = () => {
       const selection = readSelection();
+      // A click or toolbar focus may collapse the native range while the
+      // reader is still using the displayed alignment.
+      if (!selection) {
+        cancelLookup();
+        previousKey = "";
+        return;
+      }
       const key = keyFor(selection);
-      if (key === previousKey) return;
+      if (key === previousKey && previousPreview === editor.hidden) return;
       previousKey = key;
+      previousPreview = editor.hidden;
       clear();
-      if (!selection) return;
 
       const { side, picks } = selection;
+      const target = opposite(side);
       const pick = picks[0];
       const selectedParagraph = pairs[pick.paragraph][side];
       const selected = selectedParagraph.slice(pick.start, pick.end);
+      const show = (copyText?: string, bounds?: Bounds) => {
+        paint(selection, bounds);
+        setAlignment({ reading, selection, copyText });
+      };
       if (picks.length !== 1 || selected === selectedParagraph.trim()) {
-        paint(selection);
+        const complete = picks.every(({ paragraph, start, end }) => {
+          const text = pairs[paragraph][side];
+          return text.slice(start, end) === text.trim();
+        });
+        show(
+          complete
+            ? picks
+                .map(({ paragraph }) => pairs[paragraph][target])
+                .join("\n\n")
+            : undefined,
+        );
         return;
       }
-      const otherParagraph = pairs[pick.paragraph][opposite(side)];
+      const otherParagraph = pairs[pick.paragraph][target];
+      const showExact = (bounds: Bounds) => {
+        remember(key, bounds);
+        remember(
+          cacheKey(target, { paragraph: pick.paragraph, ...bounds }),
+          pick,
+        );
+        show(otherParagraph.slice(bounds.start, bounds.end), bounds);
+      };
       const sourceTerm = side === "source" ? "k" : "v";
       const targetTerm = side === "source" ? "v" : "k";
       const term = glossaries?.find((entry) => entry[sourceTerm] === selected);
@@ -401,18 +438,14 @@ export function useSelectionAlignment(
         ? cache.get(key)
         : term && uniqueBounds(otherParagraph, term[targetTerm]);
       if (known) {
-        remember(key, known);
-        remember(
-          cacheKey(opposite(side), { paragraph: pick.paragraph, ...known }),
-          pick,
-        );
-        paint(selection, known);
+        showExact(known);
         return;
       }
-      paint(selection);
+      show();
       if (known === null) return;
 
       timer = window.setTimeout(async () => {
+        timer = 0;
         const task = new AbortController();
         request = task;
         try {
@@ -437,15 +470,12 @@ export function useSelectionAlignment(
           );
           if (task.signal.aborted || keyFor(readSelection()) !== key) return;
           const bounds = returnedBounds(otherParagraph, response);
-          remember(key, bounds ?? null);
-          if (!bounds) return;
-          remember(
-            cacheKey(opposite(side), { paragraph: pick.paragraph, ...bounds }),
-            pick,
-          );
-          paint(selection, bounds);
+          if (bounds) showExact(bounds);
+          else remember(key, null);
         } catch {
           // The paired paragraph stays highlighted if the service is unavailable.
+        } finally {
+          if (request === task) request = undefined;
         }
       }, 100);
     };
@@ -461,8 +491,10 @@ export function useSelectionAlignment(
       if (event.button !== 0) return;
       dragging = true;
       mouseAnchor = event.target === editor ? event.clientY : undefined;
-      clear();
-      previousKey = "";
+      if (timer || request) {
+        cancelLookup();
+        previousKey = "";
+      }
     };
     const endDrag = () => {
       if (!dragging) return;
@@ -508,4 +540,5 @@ export function useSelectionAlignment(
     client,
     glossaries,
   ]);
+  return alignment?.reading === reading ? alignment : undefined;
 }

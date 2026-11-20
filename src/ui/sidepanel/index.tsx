@@ -90,6 +90,10 @@ interface PageState {
   translated: boolean;
 }
 
+function preserveMouseSelection(event: MouseEvent): void {
+  if (event.button === 0) event.preventDefault();
+}
+
 export function SidePanel({
   assistant,
 }: {
@@ -377,7 +381,7 @@ export function SidePanel({
   const pairedView = !!matched && matched.pairs.length > 1 && !sourceEditing;
   const sourcePreview = sourceHasMath && !sourceEditing && !pairedView;
   const workspaceService = config?.sidePanel.service ?? config?.service;
-  useSelectionAlignment(
+  const alignment = useSelectionAlignment(
     sourceBodyRef,
     resultBodyRef,
     sourceRef,
@@ -463,6 +467,24 @@ export function SidePanel({
     if (pane)
       pane.scrollTop +=
         el.getBoundingClientRect().top - pane.getBoundingClientRect().top - 12;
+  };
+  const canNavigateParagraphOnClick = (index: number) =>
+    !alignment?.selection.picks.some(({ paragraph }) => paragraph === index) &&
+    window.getSelection()?.isCollapsed !== false;
+  const correspondingTranslation =
+    alignment?.selection.side === "source" ? alignment.copyText : undefined;
+  const correspondingSource =
+    alignment?.selection.side === "translation"
+      ? alignment.copyText
+      : undefined;
+  const copyText = async (text?: string) => {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setNotice(t("side.copied"));
+    } catch {
+      setFailure(t("side.copyFailed"));
+    }
   };
   const selectedColor =
     previewColor ?? config.sidePanel.backgroundColor ?? themePaper;
@@ -1272,7 +1294,7 @@ export function SidePanel({
                       tabIndex={0}
                       aria-pressed={activeParagraph === i}
                       onClick={() => {
-                        if (window.getSelection()?.isCollapsed !== false)
+                        if (canNavigateParagraphOnClick(i))
                           focusPair(i, "result");
                       }}
                       onKeyDown={(e) => {
@@ -1493,6 +1515,14 @@ export function SidePanel({
                   >
                     {t("side.clear")}
                   </Button>
+                  <Button
+                    variant="quiet"
+                    disabled={!correspondingTranslation}
+                    onMouseDown={preserveMouseSelection}
+                    onClick={() => void copyText(correspondingTranslation)}
+                  >
+                    {t("read.copyAlignedTranslation")}
+                  </Button>
                 </div>
                 <div class="side-run-row">
                   <Button
@@ -1566,7 +1596,7 @@ export function SidePanel({
                       onClick={() => {
                         if (
                           matched.pairs.length > 1 &&
-                          window.getSelection()?.isCollapsed !== false
+                          canNavigateParagraphOnClick(i)
                         )
                           focusPair(i, "source");
                       }}
@@ -1685,9 +1715,7 @@ export function SidePanel({
                   class="ui-button ui-button-quiet"
                   disabled={!matched}
                   title={t("read.pickHint")}
-                  onMouseDown={(event) => {
-                    if (event.button === 0) event.preventDefault();
-                  }}
+                  onMouseDown={preserveMouseSelection}
                   onClick={() => {
                     const pane = resultBodyRef.current;
                     const term = pane && pickedTerm(pane);
@@ -1732,25 +1760,26 @@ export function SidePanel({
                   <Button
                     variant="quiet"
                     disabled={!output}
-                    onClick={() => {
-                      void navigator.clipboard
-                        .writeText(output)
-                        .then(() => setNotice(t("side.copied")))
-                        .catch(() => setFailure(t("side.copyFailed")));
-                    }}
+                    onClick={() => void copyText(output)}
                   >
                     {t("side.copyResult")}
                   </Button>
                   <Button
                     variant="quiet"
+                    disabled={!correspondingSource}
+                    onMouseDown={preserveMouseSelection}
+                    onClick={() => void copyText(correspondingSource)}
+                  >
+                    {t("read.copyAlignedSource")}
+                  </Button>
+                  <Button
+                    variant="quiet"
                     disabled={!matched}
-                    onClick={() => {
-                      if (matched)
-                        void navigator.clipboard
-                          .writeText(bilingualText(matched.pairs))
-                          .then(() => setNotice(t("side.copied")))
-                          .catch(() => setFailure(t("side.copyFailed")));
-                    }}
+                    onClick={() =>
+                      void copyText(
+                        matched ? bilingualText(matched.pairs) : undefined,
+                      )
+                    }
                   >
                     {t("read.copyBoth")}
                   </Button>
