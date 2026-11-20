@@ -6,6 +6,7 @@ export type GlossaryDriveProblem =
 export interface GlossaryDriveConnection {
   accountId: string;
   email?: string;
+  tableId?: string;
   baseline: string[];
   problem?: GlossaryDriveProblem;
 }

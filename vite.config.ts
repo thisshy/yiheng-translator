@@ -20,7 +20,10 @@ export default defineConfig(({ mode }) => {
                 permissions: [...(manifest.permissions ?? []), "identity"],
                 oauth2: {
                   client_id: driveClientId,
-                  scopes: ["https://www.googleapis.com/auth/drive.appdata"],
+                  scopes: [
+                    "https://www.googleapis.com/auth/drive.file",
+                    "https://www.googleapis.com/auth/drive.appdata",
+                  ],
                 },
               }
             : manifest,

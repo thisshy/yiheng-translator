@@ -53,7 +53,9 @@ export function GlossaryDrive(): preact.JSX.Element | null {
   const problem =
     connection?.problem ?? (feedback === "done" ? undefined : feedback);
   const authorize =
-    !connection || problem === "authorization" || problem === "account";
+    !connection?.tableId ||
+    problem === "authorization" ||
+    problem === "account";
   const sync = async () => {
     setBusy(true);
     setFeedback(undefined);
@@ -86,6 +88,16 @@ export function GlossaryDrive(): preact.JSX.Element | null {
     <div class="glossary-drive">
       <div>
         <span>{status}</span>
+        {connection?.tableId && (
+          <a
+            class="glossary-drive-link"
+            href={`https://drive.google.com/file/d/${encodeURIComponent(connection.tableId)}/view`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {t("glossary.driveView")}
+          </a>
+        )}
         <p class="ui-status" role="status">
           {busy
             ? t("glossary.driveWorking")

@@ -335,6 +335,10 @@ body {
   margin: 0;
 }
 
+.glossary-drive-link {
+  margin-inline-start: 12px;
+}
+
 .glossary-list {
   display: grid;
   gap: 8px;

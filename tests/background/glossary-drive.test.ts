@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const storage = vi.hoisted(() => ({
@@ -10,10 +11,18 @@ import { syncDriveGlossary } from "../../src/background/glossary-drive";
 import { syncGlossary } from "../../src/background/glossary-sync";
 import {
   DEFAULT_CONFIG,
+  glossaryIdentity,
   loadConfig,
   saveConfig,
 } from "../../src/shared/config";
 import { GLOSSARY_DRIVE_KEY } from "../../src/shared/glossary-drive";
+
+interface FakeFile {
+  name: string;
+  body: string;
+  parents?: string[];
+  appProperties?: Record<string, string>;
+}
 
 describe("Google Drive glossary sync", () => {
   const laptopTerm = { k: "waveform", v: "波形" };
@@ -21,13 +30,17 @@ describe("Google Drive glossary sync", () => {
   const draft = { k: "inspiral", v: "" };
   let profile: "laptop" | "desktop";
   let local: Record<typeof profile, Record<string, unknown>>;
-  let files: Map<string, { name: string; body: string }>;
+  let files: Map<string, FakeFile>;
   let account: string;
   let failUpload: boolean;
   let addDuringUpload: boolean;
   let expireToken: boolean;
   const getAuthToken = vi.fn();
   const removeCachedAuthToken = vi.fn();
+  const role = (file: FakeFile) => file.appProperties?.yihengGlossaryV1;
+  const table = () =>
+    [...files.values()].find((file) => role(file) === "table")!;
+  const newId = () => `file-${files.size + 1}`;
 
   beforeEach(() => {
     vi.resetAllMocks();
@@ -70,14 +83,25 @@ describe("Google Drive glossary sync", () => {
           return Response.json({ user: { permissionId: account } });
         }
 
-        if (url.searchParams.get("spaces") === "appDataFolder") {
+        const space = url.searchParams.get("spaces");
+        if (space) {
           if (expireToken) {
             expireToken = false;
             account = "another-account";
             return Response.json({}, { status: 401 });
           }
           return Response.json({
-            files: [...files].map(([id, { name }]) => ({ id, name })),
+            files: [...files]
+              .filter(
+                ([, file]) =>
+                  (space === "appDataFolder") ===
+                  Boolean(file.parents?.includes("appDataFolder")),
+              )
+              .map(([id, { body, ...metadata }]) => ({
+                id,
+                ...metadata,
+                sha256Checksum: createHash("sha256").update(body).digest("hex"),
+              })),
           });
         }
 
@@ -96,23 +120,35 @@ describe("Google Drive glossary sync", () => {
         }
         const body = String(request.body);
         if (request.method === "POST") {
-          const matches = body
-            .split("\r\n")
-            .filter((line) => line.startsWith("{"));
-          expect(JSON.parse(matches[0]).parents).toEqual(["appDataFolder"]);
-          const newId = String(files.size + 1);
-          files.set(newId, {
-            name: JSON.parse(matches[0]).name,
-            body: matches[1],
-          });
-          return Response.json({ id: newId });
+          const id = newId();
+          if (url.searchParams.get("uploadType") === "multipart") {
+            const boundary = new Headers(request.headers)
+              .get("Content-Type")!
+              .split("boundary=")[1];
+            const [, metadataPart, contentPart] = body.split(`--${boundary}`);
+            const metadata = JSON.parse(
+              metadataPart.split("\r\n\r\n")[1],
+            ) as FakeFile;
+            expect(role(files.get(metadata.parents![0])!)).toBe("folder");
+            const content = contentPart.slice(
+              contentPart.indexOf("\r\n\r\n") + 4,
+              -2,
+            );
+            files.set(id, { ...metadata, body: content });
+          } else {
+            const metadata = JSON.parse(body) as FakeFile;
+            expect(role(metadata)).toBe("folder");
+            expect(metadata.parents).toBeUndefined();
+            files.set(id, { ...metadata, body: "" });
+          }
+          return Response.json({ id });
         }
         expect(request.method).toBe("PATCH");
-        if (addDuringUpload) {
+        if (addDuringUpload && role(files.get(id)!) === "ledger") {
           const before = (await loadConfig()).glossaries;
           await saveConfig({ glossaries: [...before, desktopTerm] });
         }
-        files.set(id, { name: files.get(id)!.name, body });
+        files.set(id, { ...files.get(id)!, body });
         return Response.json({ id });
       }),
     );
@@ -152,7 +188,13 @@ describe("Google Drive glossary sync", () => {
     profile = "desktop";
     await syncDriveGlossary();
     expect((await loadConfig()).glossaries).toEqual([edited]);
-    expect(files.size).toBe(2);
+    expect(
+      [...files.values()].filter((file) => role(file) === "ledger"),
+    ).toHaveLength(2);
+    expect(table().name).toBe("译衡术语表.csv");
+    expect(table().body).toBe(
+      '\uFEFF原文,译文,适用域名\r\n"waveform","引力波波形",""\r\n',
+    );
     await syncGlossary();
     expect(storage.sync.set).not.toHaveBeenCalled();
   });
@@ -167,7 +209,7 @@ describe("Google Drive glossary sync", () => {
     expect((await loadConfig()).glossaries).toEqual([laptopTerm, draft]);
     failUpload = false;
     await expect(syncDriveGlossary(true)).resolves.toEqual({ connected: true });
-    expect(files.size).toBe(1);
+    expect(table().body).toContain(laptopTerm.v);
   });
 
   it("preserves edits made locally during the Drive upload", async () => {
@@ -184,7 +226,7 @@ describe("Google Drive glossary sync", () => {
     ]);
     addDuringUpload = false;
     await syncDriveGlossary();
-    expect([...files.values()][0].body).toContain(desktopTerm.v);
+    expect(table().body).toContain(desktopTerm.v);
   });
 
   it("checks the account again if the token expires before an upload", async () => {
@@ -196,7 +238,70 @@ describe("Google Drive glossary sync", () => {
       problem: "account",
     });
     expect(removeCachedAuthToken).toHaveBeenCalledOnce();
-    expect([...files.values()][0].body).not.toContain(desktopTerm.v);
+    expect(table().body).not.toContain(desktopTerm.v);
     expect((await loadConfig()).glossaries).toEqual([laptopTerm, desktopTerm]);
+  });
+
+  it("migrates the hidden glossary into a visible table without reviving deletions", async () => {
+    const removed = { k: "removed", v: "旧术语" };
+    const imported = {
+      k: "deflection, angle",
+      v: '偏转"角',
+      domain: "example.org",
+    };
+    local.laptop.config = {
+      ...DEFAULT_CONFIG,
+      glossaries: [laptopTerm, removed, draft],
+    };
+    local.laptop[GLOSSARY_DRIVE_KEY] = {
+      accountId: account,
+      baseline: [laptopTerm, removed].map(glossaryIdentity),
+    };
+    const hidden: FakeFile = {
+      name: "yiheng-glossary-v1-legacy-file",
+      parents: ["appDataFolder"],
+      body: JSON.stringify({
+        version: 1,
+        changes: [
+          { entry: imported, revision: 4 },
+          { entry: removed, revision: 5, deleted: true },
+        ],
+      }),
+    };
+    files.set("legacy-file", hidden);
+    await expect(syncDriveGlossary()).resolves.toEqual({ connected: true });
+    expect((await loadConfig()).glossaries).toEqual([
+      laptopTerm,
+      draft,
+      imported,
+    ]);
+    expect(table().body).toContain(
+      '"deflection, angle","偏转""角","example.org"',
+    );
+    expect(table().body).not.toContain(removed.k);
+    expect(files.get("legacy-file")).toEqual(hidden);
+
+    // A browser still on the previous version can make a change before it upgrades.
+    hidden.body = JSON.stringify({
+      version: 1,
+      changes: [
+        ...JSON.parse(hidden.body).changes,
+        { entry: imported, revision: 9, deleted: true },
+      ],
+    });
+    profile = "desktop";
+    local.desktop[GLOSSARY_DRIVE_KEY] = { accountId: account, baseline: [] };
+    await expect(syncDriveGlossary()).resolves.toEqual({ connected: true });
+    profile = "laptop";
+    await expect(syncDriveGlossary()).resolves.toEqual({ connected: true });
+    expect((await loadConfig()).glossaries).toEqual([
+      laptopTerm,
+      draft,
+      desktopTerm,
+    ]);
+    expect(table().body).not.toContain(imported.k);
+    expect(
+      [...files.values()].filter((file) => role(file) === "table"),
+    ).toHaveLength(1);
   });
 });
