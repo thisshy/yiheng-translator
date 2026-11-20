@@ -44,6 +44,7 @@ import {
   readImageFile,
   type ImageAttachment,
 } from "./images";
+import { paperPresets, readablePaperColor, useThemePaper } from "./paper";
 import { SpeechButton } from "./speech";
 import { SpeechSettings } from "./speech-settings";
 import { hasMath, MathText } from "./math-text";
@@ -107,6 +108,10 @@ export function SidePanel({
   };
   const [notice, setNotice] = useState<string>();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [previewColor, setPreviewColor] = useState<string>();
+  const themePaper = useThemePaper(config?.sidePanel.theme);
+  const paletteTrigger = useRef<HTMLButtonElement>(null);
   const [moreOpen, setMoreOpen] = useState(false);
   const sourceRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -225,6 +230,13 @@ export function SidePanel({
     imageOriginal,
     draftReady,
   ]);
+  useEffect(() => {
+    if (draftReady && !working && !attachment && !source.trim() && output) {
+      setOutput("");
+      setResultSource("");
+    }
+  }, [draftReady, working, attachment, source, output]);
+
   const configReady = Boolean(config);
   useEffect(() => {
     if (configReady && activeTab === "translate") sourceRef.current?.focus();
@@ -249,6 +261,14 @@ export function SidePanel({
   const sourceText = attachment ? imageOriginal : source;
   const sourceHasMath = hasMath(sourceText);
   const sourcePreview = sourceHasMath && !sourceEditing;
+  const selectedColor =
+    previewColor ?? config.sidePanel.backgroundColor ?? themePaper;
+  const paper = readablePaperColor(selectedColor);
+  const closePalette = (): void => {
+    setPaletteOpen(false);
+    setPreviewColor(undefined);
+    paletteTrigger.current?.focus();
+  };
   const serviceConfig = config.services[service];
   const model =
     serviceConfig?.model ??
@@ -517,10 +537,15 @@ export function SidePanel({
       class="side-shell"
       data-theme={config.sidePanel.theme}
       style={{
+        "--paper-color": paper,
         "--side-font-size": `${config.sidePanel.fontSize}px`,
         "--side-font-family": FONTS[config.sidePanel.fontFamily],
       }}
       onKeyDown={(event) => {
+        if (paletteOpen && event.key === "Escape") {
+          closePalette();
+          return;
+        }
         if (
           activeTab === "translate" &&
           !event.defaultPrevented &&
@@ -578,6 +603,19 @@ export function SidePanel({
               A+
             </Button>
           </div>
+          <button
+            type="button"
+            class="ui-button paper-trigger"
+            ref={paletteTrigger}
+            aria-expanded={paletteOpen}
+            aria-controls="paper-palette"
+            onClick={() =>
+              paletteOpen ? closePalette() : setPaletteOpen(true)
+            }
+          >
+            <span class="paper-chip" aria-hidden="true" />
+            {t("paper.palette")}
+          </button>
           <Button
             variant="quiet"
             aria-expanded={settingsOpen}
@@ -588,6 +626,58 @@ export function SidePanel({
           </Button>
         </div>
       </header>
+      {paletteOpen && (
+        <section
+          id="paper-palette"
+          class="paper-palette"
+          aria-label={t("paper.palette")}
+        >
+          {Object.entries(paperPresets).map(([name, color]) => (
+            <button
+              key={name}
+              type="button"
+              class="ui-button paper-preset"
+              aria-pressed={selectedColor.toLowerCase() === color}
+              onClick={() => {
+                setPreviewColor(undefined);
+                savePanel({ backgroundColor: color });
+              }}
+            >
+              <span
+                class="paper-chip"
+                aria-hidden="true"
+                style={{ backgroundColor: color }}
+              />
+              {t(`paper.${name as keyof typeof paperPresets}`)}
+            </button>
+          ))}
+          <label class="paper-custom">
+            <input
+              type="color"
+              value={selectedColor}
+              aria-label={t("paper.custom")}
+              onInput={(event) => setPreviewColor(event.currentTarget.value)}
+              onChange={(event) => {
+                savePanel({ backgroundColor: event.currentTarget.value });
+                setPreviewColor(undefined);
+              }}
+            />
+            {t("paper.custom")} <code>{paper.toUpperCase()}</code>
+          </label>
+          <Button
+            variant="quiet"
+            onClick={() => {
+              setPreviewColor(undefined);
+              savePanel({ backgroundColor: undefined });
+            }}
+          >
+            {t("paper.reset")}
+          </Button>
+          {paper !== selectedColor && (
+            <small role="status">{t("paper.adjusted")}</small>
+          )}
+        </section>
+      )}
       {settingsOpen && (
         <section
           id="side-settings"
@@ -691,15 +781,29 @@ export function SidePanel({
             <Field label={t("side.appearance")} htmlFor="side-theme">
               <Select
                 id="side-theme"
-                value={config.sidePanel.theme}
+                value={
+                  config.sidePanel.backgroundColor
+                    ? "custom"
+                    : config.sidePanel.theme
+                }
                 options={[
+                  { value: "custom", label: t("paper.custom") },
                   { value: "system", label: t("side.themeSystem") },
                   { value: "light", label: t("side.themeLight") },
                   { value: "dark", label: t("side.themeDark") },
                 ]}
-                onChange={(next) =>
-                  savePanel({ theme: next as Config["sidePanel"]["theme"] })
-                }
+                onChange={(next) => {
+                  setPreviewColor(undefined);
+                  if (next === "custom") {
+                    setPaletteOpen(true);
+                    savePanel({ backgroundColor: selectedColor });
+                  } else {
+                    savePanel({
+                      theme: next as Config["sidePanel"]["theme"],
+                      backgroundColor: undefined,
+                    });
+                  }
+                }}
               />
             </Field>
           </div>

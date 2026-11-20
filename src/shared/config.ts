@@ -351,6 +351,11 @@ export const configSchema: z.ZodType<Config> = z.object({
       fontSize: z.number().int().min(14).max(24).default(16),
       fontFamily: z.enum(["system", "yahei", "song"]).default("system"),
       theme: z.enum(["system", "light", "dark"]).default("system"),
+      backgroundColor: z
+        .string()
+        .regex(/^#[0-9a-f]{6}$/i)
+        .optional()
+        .catch(undefined),
       sourceSpeechRate: z.number().min(0.5).max(2).default(0.8),
       translationSpeechRate: z.number().min(0.5).max(2).default(1),
     })

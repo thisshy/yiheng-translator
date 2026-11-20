@@ -364,6 +364,40 @@ describe("SidePanel", () => {
     expect(assistant.complete).toHaveBeenCalledTimes(1);
   });
 
+  it("persists a preset, previews custom colors and restores the theme paper", async () => {
+    const view = render(<SidePanel assistant={idleAssistant()} />);
+    fireEvent.click(await screen.findByRole("button", { name: "底色" }));
+    fireEvent.click(screen.getByRole("button", { name: "豆沙绿" }));
+    const storedPaper = () =>
+      (storage.config as typeof DEFAULT_CONFIG).sidePanel.backgroundColor;
+    await waitFor(() => expect(storedPaper()).toBe("#cadaca"));
+    view.unmount();
+    render(<SidePanel assistant={idleAssistant()} />);
+    fireEvent.click(await screen.findByRole("button", { name: "底色" }));
+    const paper = () =>
+      screen.getByRole("main").style.getPropertyValue("--paper-color");
+    expect(paper()).toBe("#cadaca");
+    const picker = screen.getByLabelText("自选颜色");
+    fireEvent.input(picker, { target: { value: "#000000" } });
+    expect(paper()).toBe("#848484");
+    fireEvent.change(picker, { target: { value: "#000000" } });
+    await waitFor(() => expect(storedPaper()).toBe("#000000"));
+    fireEvent.click(screen.getByRole("button", { name: "恢复主题底色" }));
+    await waitFor(() => expect(storedPaper()).toBeUndefined());
+    expect(paper()).toBe("#e9e4d8");
+  });
+
+  it("clears a previous translation when the original is erased", async () => {
+    render(<SidePanel assistant={idleAssistant()} />);
+    const source = await screen.findByLabelText("输入要翻译的文字");
+    fireEvent.input(source, { target: { value: "hello" } });
+    fireEvent.click(screen.getByRole("button", { name: "翻译文字" }));
+    await screen.findByText("你好", { selector: ".side-output" });
+    fireEvent.input(source, { target: { value: " " } });
+    await screen.findByText("译文会显示在这里");
+    expect(screen.queryByText("原文已修改，点击翻译更新结果")).toBeNull();
+  });
+
   it("loads older settings with a readable font and persists the chosen size", async () => {
     const oldConfig = structuredClone(DEFAULT_CONFIG);
     storage.config = {
