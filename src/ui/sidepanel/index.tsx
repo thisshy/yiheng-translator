@@ -63,6 +63,7 @@ import { pickedTerm, TermEditor, type TermSelection } from "./term-editor";
 import { SpeechButton } from "./speech";
 import { SpeechSettings } from "./speech-settings";
 import { hasMath, MathText } from "./math-text";
+import { useSelectionAlignment } from "./selection-alignment";
 import { loadDraft, saveDraft, type TextTool } from "./state";
 import "../shared/styles.css";
 import "./sidepanel.css";
@@ -183,6 +184,7 @@ export function SidePanel({
   const paletteTrigger = useRef<HTMLButtonElement>(null);
   const [moreOpen, setMoreOpen] = useState(false);
   const sourceRef = useRef<HTMLTextAreaElement>(null);
+  const sourceBodyRef = useRef<HTMLDivElement>(null);
   const resultBodyRef = useRef<HTMLDivElement>(null);
   const selectSourceOnEdit = useRef(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -359,23 +361,8 @@ export function SidePanel({
     }
   }, [sourceEditing]);
 
-  if (!config)
-    return (
-      <main class="side-shell">
-        <p class="ui-status">{error?.message ?? t("common.loading")}</p>
-      </main>
-    );
-  setUiLocaleOverride(config.uiLanguage);
-  const service =
-    activeTab === "page"
-      ? config.service
-      : (config.sidePanel.service ?? config.service);
-  const targetLanguage =
-    config.sidePanel.targetLanguage ?? config.targetLanguage;
-  const sourceText = attachment ? imageOriginal : source;
+  const sourceText = originalText;
   const sourceHasMath = hasMath(sourceText);
-  const language =
-    config.sourceLanguage === "auto" ? detectedLanguage : config.sourceLanguage;
   const fresh =
     !working &&
     tool === "translate" &&
@@ -389,6 +376,30 @@ export function SidePanel({
       : null;
   const pairedView = !!matched && matched.pairs.length > 1 && !sourceEditing;
   const sourcePreview = sourceHasMath && !sourceEditing && !pairedView;
+  const workspaceService = config?.sidePanel.service ?? config?.service;
+  useSelectionAlignment(
+    sourceBodyRef,
+    resultBodyRef,
+    sourceRef,
+    activeTab === "translate" ? matched : null,
+    workspaceService,
+    client,
+    config?.glossaries,
+  );
+
+  if (!config)
+    return (
+      <main class="side-shell">
+        <p class="ui-status">{error?.message ?? t("common.loading")}</p>
+      </main>
+    );
+  setUiLocaleOverride(config.uiLanguage);
+  const service =
+    activeTab === "page" ? config.service : (workspaceService ?? config.service);
+  const targetLanguage =
+    config.sidePanel.targetLanguage ?? config.targetLanguage;
+  const language =
+    config.sourceLanguage === "auto" ? detectedLanguage : config.sourceLanguage;
   const undoAvailable = !!undoPdf && undoPdf.after === source;
   const currentEntry = matched
     ? {
@@ -1197,6 +1208,7 @@ export function SidePanel({
             </header>
             <div
               class="side-source-body"
+              ref={sourceBodyRef}
               tabIndex={sourcePreview || pairedView ? 0 : undefined}
               onKeyDown={(event) => {
                 if (
@@ -1257,7 +1269,10 @@ export function SidePanel({
                       role="button"
                       tabIndex={0}
                       aria-pressed={activeParagraph === i}
-                      onClick={() => focusPair(i, "result")}
+                      onClick={() => {
+                        if (window.getSelection()?.isCollapsed !== false)
+                          focusPair(i, "result");
+                      }}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
@@ -1265,7 +1280,7 @@ export function SidePanel({
                         }
                       }}
                     >
-                      <MathText text={p.source} />
+                      <MathText text={p.source} termOffsets />
                     </div>
                   ))}
                 </div>
@@ -1274,9 +1289,10 @@ export function SidePanel({
                 <MathText
                   id="side-source-preview"
                   class="side-source-preview side-reading"
-                  text={sourceText}
+                  text={sourceText.replace(/\r\n?/g, "\n")}
                   label={t("side.mathPreview")}
                   tabIndex={0}
+                  termOffsets
                 />
               )}
               <textarea

@@ -94,6 +94,8 @@ export function MathText({
     for (const part of literalSpans(text)) {
       plain(part.start);
       const span = document.createElement("span");
+      span.dataset.literalOffset = String(part.start);
+      span.dataset.literalLength = String(part.value.length);
       renderMathText(span, part.value);
       fragment.append(span);
       cursor = part.start + part.value.length;

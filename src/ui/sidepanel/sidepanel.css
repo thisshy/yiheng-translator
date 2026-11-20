@@ -718,6 +718,14 @@ body {
   background: var(--ui-accent-soft);
   box-shadow: -3px 0 var(--ui-accent);
 }
+.read-paragraph[data-source-match] {
+  background: color-mix(in srgb, #e1b341 24%, var(--ui-panel));
+  box-shadow: -3px 0 #ac7f24;
+}
+::highlight(yiheng-source-match) {
+  background-color: #f1d68d;
+  color: #000;
+}
 .term-editor {
   display: grid;
   gap: 8px;
