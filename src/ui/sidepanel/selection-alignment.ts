@@ -236,6 +236,7 @@ export function useSelectionAlignment(
     let request: AbortController | undefined;
     let dragging = false;
     let mouseAnchor: number | undefined;
+    let provisional = false;
 
     const layout = () => {
       if (editor.value !== editorValue) {
@@ -386,11 +387,13 @@ export function useSelectionAlignment(
 
     const refresh = () => {
       const selection = readSelection();
-      // A click or toolbar focus may collapse the native range while the
-      // reader is still using the displayed alignment.
       if (!selection) {
-        cancelLookup();
         previousKey = "";
+        if (provisional) {
+          clear();
+          setAlignment(undefined);
+          provisional = false;
+        } else cancelLookup();
         return;
       }
       const key = keyFor(selection);
@@ -406,6 +409,7 @@ export function useSelectionAlignment(
       const selected = selectedParagraph.slice(pick.start, pick.end);
       const show = (copyText?: string, bounds?: Bounds) => {
         paint(selection, bounds);
+        provisional = !copyText;
         setAlignment({ reading, selection, copyText });
       };
       if (picks.length !== 1 || selected === selectedParagraph.trim()) {
