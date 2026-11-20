@@ -1,5 +1,11 @@
 import { render } from "preact";
-import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "preact/hooks";
 import browser from "webextension-polyfill";
 import {
   clampEffort,
@@ -177,6 +183,7 @@ export function SidePanel({
   const paletteTrigger = useRef<HTMLButtonElement>(null);
   const [moreOpen, setMoreOpen] = useState(false);
   const sourceRef = useRef<HTMLTextAreaElement>(null);
+  const selectSourceOnEdit = useRef(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const imageRevision = useRef(0);
   const controller = useRef<AbortController>();
@@ -340,8 +347,15 @@ export function SidePanel({
   useEffect(() => {
     if (configReady && activeTab === "translate") sourceRef.current?.focus();
   }, [configReady, activeTab]);
-  useEffect(() => {
-    if (sourceEditing) sourceRef.current?.focus();
+  useLayoutEffect(() => {
+    if (!sourceEditing) return;
+    const editor = sourceRef.current;
+    if (!editor) return;
+    editor.focus();
+    if (selectSourceOnEdit.current) {
+      selectSourceOnEdit.current = false;
+      editor.select();
+    }
   }, [sourceEditing]);
 
   if (!config)
@@ -1180,7 +1194,29 @@ export function SidePanel({
                 onChange={(next) => save({ sourceLanguage: next as LangCode })}
               />
             </header>
-            <div class="side-source-body">
+            <div
+              class="side-source-body"
+              tabIndex={sourcePreview || pairedView ? 0 : undefined}
+              onKeyDown={(event) => {
+                if (
+                  !(sourcePreview || pairedView) ||
+                  event.defaultPrevented ||
+                  !(event.ctrlKey || event.metaKey) ||
+                  event.altKey ||
+                  event.shiftKey ||
+                  event.key.toLowerCase() !== "a"
+                )
+                  return;
+                if (
+                  event.target !== event.currentTarget &&
+                  !(event.target as HTMLElement).closest("#side-source-preview")
+                )
+                  return;
+                event.preventDefault();
+                selectSourceOnEdit.current = true;
+                setSourceEditing(true);
+              }}
+            >
               {attachment && (
                 <figure class="side-image-preview">
                   <img src={attachment.dataUrl} alt={t("side.imageAlt")} />
@@ -1208,7 +1244,10 @@ export function SidePanel({
                 </figure>
               )}
               {pairedView && (
-                <div class="side-source-preview side-reading">
+                <div
+                  id="side-source-preview"
+                  class="side-source-preview side-reading"
+                >
                   {matched!.pairs.map((p, i) => (
                     <div
                       key={i}

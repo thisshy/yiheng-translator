@@ -398,6 +398,41 @@ describe("SidePanel", () => {
     expect(screen.queryByText("原文已修改，点击翻译更新结果")).toBeNull();
   });
 
+  it.each([
+    {
+      source: "First paragraph.\n\nSecond paragraph.",
+      preview: "#read-source-1",
+      shortcut: { ctrlKey: true },
+    },
+    {
+      source: "Mass is $m_1 + m_2$.",
+      preview: "#side-source-preview",
+      shortcut: { metaKey: true },
+    },
+  ])(
+    "selects the raw original from a reading preview with the select-all shortcut",
+    async ({ source, preview, shortcut }) => {
+      const view = render(<SidePanel assistant={idleAssistant()} />);
+      const editor =
+        await screen.findByLabelText<HTMLTextAreaElement>("输入要翻译的文字");
+      fireEvent.input(editor, { target: { value: source } });
+      fireEvent.click(screen.getByRole("button", { name: "翻译文字" }));
+      await waitFor(() =>
+        expect(view.container.querySelector(preview)).not.toBeNull(),
+      );
+      const trigger = view.container.querySelector(preview)!;
+      expect(editor.hidden).toBe(true);
+      expect(fireEvent.keyDown(trigger, { key: "a", ...shortcut })).toBe(false);
+      expect(editor.hidden).toBe(false);
+      expect(document.activeElement).toBe(editor);
+      expect(
+        editor.value.slice(editor.selectionStart, editor.selectionEnd),
+      ).toBe(source);
+      fireEvent.input(editor, { target: { value: "" } });
+      await screen.findByText("译文会显示在这里");
+    },
+  );
+
   it("aligns actual translation units, keeps favorites searchable and swaps complete text", async () => {
     const assistant = idleAssistant();
     vi.mocked(assistant.complete)
