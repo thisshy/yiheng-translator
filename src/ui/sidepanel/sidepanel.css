@@ -702,3 +702,72 @@ body {
 .side-error {
   border-left-color: #9d453b;
 }
+
+.read-paragraph {
+  border-radius: 6px;
+  min-width: 0;
+}
+.read-paragraph + .read-paragraph {
+  margin-top: 1em;
+}
+.read-paragraph[role="button"],
+[data-term-offset] {
+  cursor: pointer;
+}
+.read-paragraph[aria-pressed="true"],
+.read-paragraph[data-active="true"] {
+  background: var(--ui-accent-soft);
+  box-shadow: -3px 0 var(--ui-accent);
+}
+.term-editor {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  max-height: 32dvh;
+  overflow: auto;
+  background: var(--ui-panel);
+}
+.term-editor header,
+.read-actions,
+.read-library-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.term-editor header {
+  justify-content: space-between;
+}
+.term-editor label {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  align-items: center;
+}
+.term-editor input,
+.read-library-tools input {
+  min-width: 0;
+  padding: 7px;
+  border: 1px solid var(--ui-border);
+  border-radius: 6px;
+  color: var(--ui-text);
+  background: var(--ui-panel);
+}
+.read-library-tools {
+  margin-block: 8px;
+}
+.side-history li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+.side-history li .ui-button {
+  width: auto;
+  align-content: center;
+}
+.read-actions [aria-pressed="true"],
+.read-library-tools [aria-pressed="true"] {
+  outline: 1px solid currentColor;
+}

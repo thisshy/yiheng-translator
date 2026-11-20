@@ -398,6 +398,131 @@ describe("SidePanel", () => {
     expect(screen.queryByText("原文已修改，点击翻译更新结果")).toBeNull();
   });
 
+  it("aligns actual translation units, keeps favorites searchable and swaps complete text", async () => {
+    const assistant = idleAssistant();
+    vi.mocked(assistant.complete)
+      .mockResolvedValueOnce("首段。\n\n补充。")
+      .mockResolvedValueOnce("末段。");
+    const view = render(<SidePanel assistant={assistant} />);
+    const source = await screen.findByLabelText("输入要翻译的文字");
+    fireEvent.input(source, {
+      target: { value: "The first paragraph.\n\nThe second paragraph." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "翻译文字" }));
+    await waitFor(() =>
+      expect(
+        view.container.querySelectorAll("[id^=read-source-]"),
+      ).toHaveLength(2),
+    );
+    expect(assistant.complete).toHaveBeenCalledTimes(2);
+    fireEvent.click(view.container.querySelector("#read-source-1")!);
+    expect(
+      view.container
+        .querySelector("#read-result-1")
+        ?.getAttribute("data-active"),
+    ).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "复制双语" }));
+    expect(writeClipboard).toHaveBeenCalledWith(
+      "The first paragraph.\n首段。\n\n补充。\n\nThe second paragraph.\n末段。",
+    );
+    fireEvent.click(
+      view.container.querySelector<HTMLButtonElement>(
+        ".side-result-card button[aria-pressed=false]:last-child",
+      )!,
+    );
+    await waitFor(() =>
+      expect(storage.kSidePanelHistory).toEqual([
+        expect.objectContaining({ starred: true }),
+      ]),
+    );
+    const library = view.container.querySelector<HTMLDetailsElement>(
+      ".side-history-disclosure",
+    )!;
+    library.open = true;
+    fireEvent.click(screen.getByRole("button", { name: "只看收藏" }));
+    fireEvent.input(screen.getByRole("searchbox"), {
+      target: { value: "missing phrase" },
+    });
+    await screen.findByText("没有匹配的记录");
+    fireEvent.input(screen.getByRole("searchbox"), {
+      target: { value: "补充" },
+    });
+    expect(library.querySelectorAll("li")).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "清空历史" }));
+    await waitFor(() => expect(library.querySelectorAll("li")).toHaveLength(1));
+    fireEvent.click(screen.getByRole("button", { name: "交换语言" }));
+    await waitFor(() =>
+      expect((source as HTMLTextAreaElement).value).toBe(
+        "首段。\n\n补充。\n\n末段。",
+      ),
+    );
+    expect(view.container.querySelector("#read-result-0")?.textContent).toBe(
+      "The first paragraph.",
+    );
+    expect((screen.getByLabelText("原文语言") as HTMLSelectElement).value).toBe(
+      "zh-CN",
+    );
+    expect((screen.getByLabelText("目标语言") as HTMLSelectElement).value).toBe(
+      "en",
+    );
+  });
+
+  it("edits only the selected occurrence and saves its source term for future translations", async () => {
+    const assistant = idleAssistant();
+    vi.mocked(assistant.complete)
+      .mockResolvedValueOnce("合并与合并")
+      .mockResolvedValueOnce(
+        JSON.stringify({ source: "merger", alternatives: ["并合"] }),
+      )
+      .mockResolvedValueOnce("并合");
+    const view = render(<SidePanel assistant={assistant} />);
+    const input = await screen.findByLabelText("输入要翻译的文字");
+    fireEvent.input(input, { target: { value: "The merger and the merger" } });
+    fireEvent.click(screen.getByRole("button", { name: "翻译文字" }));
+    await waitFor(() =>
+      expect(view.container.querySelector("[data-term-offset]")).toBeTruthy(),
+    );
+    const span =
+      view.container.querySelector<HTMLElement>("[data-term-offset]")!;
+    const range = document.createRange();
+    range.setStart(span.firstChild!, 3);
+    range.setEnd(span.firstChild!, 5);
+    window.getSelection()!.removeAllRanges();
+    window.getSelection()!.addRange(range);
+    fireEvent.click(span);
+    fireEvent.click(await screen.findByRole("button", { name: "并合" }));
+    fireEvent.click(screen.getByRole("button", { name: "加入术语表" }));
+    await screen.findByText("已保存到术语表");
+    expect((storage.config as typeof DEFAULT_CONFIG).glossaries).toContainEqual(
+      { k: "merger", v: "并合" },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "替换选中词" }));
+    expect(view.container.querySelector(".side-output")?.textContent).toBe(
+      "合并与并合",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "翻译文字" }));
+    await waitFor(() =>
+      expect(assistant.complete).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          instruction: expect.stringContaining("merger"),
+        }),
+        expect.anything(),
+      ),
+    );
+  });
+
+  it("can undo PDF cleanup before translation", async () => {
+    render(<SidePanel assistant={idleAssistant()} />);
+    const input = await screen.findByLabelText("输入要翻译的文字");
+    fireEvent.input(input, { target: { value: "The first\nline." } });
+    fireEvent.click(screen.getByRole("button", { name: "整理断行" }));
+    await screen.findByDisplayValue("The first line.");
+    fireEvent.click(screen.getByRole("button", { name: "撤销整理" }));
+    await waitFor(() =>
+      expect((input as HTMLTextAreaElement).value).toBe("The first\nline."),
+    );
+  });
+
   it("loads older settings with a readable font and persists the chosen size", async () => {
     const oldConfig = structuredClone(DEFAULT_CONFIG);
     storage.config = {

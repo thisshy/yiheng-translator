@@ -1,3 +1,4 @@
+import { literalSpans } from "./reading";
 import renderMathInElement, {
   type DelimiterSpec,
 } from "katex/contrib/auto-render";
@@ -63,6 +64,7 @@ export function MathText({
   label,
   live,
   tabIndex,
+  termOffsets = false,
 }: {
   text: string;
   class?: string;
@@ -70,11 +72,35 @@ export function MathText({
   label?: string;
   live?: "polite";
   tabIndex?: number;
+  termOffsets?: boolean;
 }): preact.JSX.Element {
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
-    if (ref.current) renderMathText(ref.current, text);
-  }, [text]);
+    const root = ref.current;
+    if (!root) return;
+    if (!termOffsets) {
+      renderMathText(root, text);
+      return;
+    }
+    const fragment = document.createDocumentFragment();
+    let cursor = 0;
+    const plain = (end: number) => {
+      if (end <= cursor) return;
+      const span = document.createElement("span");
+      span.dataset.termOffset = String(cursor);
+      span.textContent = text.slice(cursor, end);
+      fragment.append(span);
+    };
+    for (const part of literalSpans(text)) {
+      plain(part.start);
+      const span = document.createElement("span");
+      renderMathText(span, part.value);
+      fragment.append(span);
+      cursor = part.start + part.value.length;
+    }
+    plain(text.length);
+    root.replaceChildren(fragment);
+  }, [text, termOffsets]);
   // This subtree belongs to KaTeX; Preact must not reconcile its text children.
   return (
     <div

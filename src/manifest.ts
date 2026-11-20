@@ -4,7 +4,7 @@ export default defineManifest({
   manifest_version: 3,
   name: "译衡",
   description: "Paragraph-level bilingual web translation.",
-  version: "0.0.14",
+  version: "0.0.15",
   permissions: [
     "storage",
     "alarms",

@@ -1,3 +1,4 @@
+import { isReadingResult, type ReadingResult } from "./reading";
 import browser from "webextension-polyfill";
 import { assertAssistantImage } from "../../shared/assistant-image";
 import type { ImageAttachment } from "./images";
@@ -7,6 +8,7 @@ export interface SidePanelDraft {
   output: string;
   resultSource: string;
   tool: TextTool;
+  reading?: ReadingResult | null;
   image?: ImageAttachment;
   imageOriginal?: string;
 }
@@ -37,6 +39,8 @@ export async function loadDraft(): Promise<SidePanelDraft | undefined> {
       typeof draft.imageOriginal !== "string"
     )
       return;
+    if (!isReadingResult(draft.reading) && draft.reading != null)
+      delete draft.reading;
     return draft as SidePanelDraft;
   } catch {
     return;

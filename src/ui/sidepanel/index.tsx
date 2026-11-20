@@ -18,7 +18,7 @@ import {
   type AssistantRequest,
 } from "../../shared/k-assistant";
 import { WORKSPACE_SELECTION_PREFIX } from "../../shared/translation-workspace";
-import { LANGUAGE_CODES } from "../../shared/lang";
+import { detectLang, normalizeLang, LANGUAGE_CODES } from "../../shared/lang";
 import { parseImageTranslation } from "../../shared/image-translation";
 import type {
   Config,
@@ -45,6 +45,15 @@ import {
   type ImageAttachment,
 } from "./images";
 import { paperPresets, readablePaperColor, useThemePaper } from "./paper";
+import {
+  bilingualText,
+  cleanPdfText,
+  isReadingResult,
+  paragraphs,
+  type ParagraphPair,
+  type ReadingResult,
+} from "./reading";
+import { pickedTerm, TermEditor, type TermSelection } from "./term-editor";
 import { SpeechButton } from "./speech";
 import { SpeechSettings } from "./speech-settings";
 import { hasMath, MathText } from "./math-text";
@@ -65,6 +74,8 @@ export interface TranslationHistoryItem {
   to: LangCode;
   service: string;
   createdAt: number;
+  starred?: boolean;
+  reading?: ReadingResult;
 }
 interface PageState {
   title: string;
@@ -96,7 +107,59 @@ export function SidePanel({
   const [tool, setTool] = useState<TextTool>("translate");
   const [working, setWorking] = useState(false);
   const [history, setHistory] = useState<TranslationHistoryItem[]>([]);
-  const [historyReady, setHistoryReady] = useState(false);
+  const [reading, setReading] = useState<ReadingResult | null>(null);
+  const [activeParagraph, setActiveParagraph] = useState<number>();
+  const [selectedTerm, setSelectedTerm] = useState<TermSelection>();
+  const [undoPdf, setUndoPdf] = useState<{ before: string; after: string }>();
+  const [query, setQuery] = useState("");
+  const [onlyStars, setOnlyStars] = useState(false);
+  const [detected, setDetected] = useState<{
+    text: string;
+    language: LangCode;
+  }>();
+  const cleaned = useMemo(
+    () =>
+      !attachment && /[\r\n\u00ad]/.test(source)
+        ? cleanPdfText(source)
+        : source,
+    [source, attachment],
+  );
+  const originalText = attachment ? imageOriginal : source;
+  const fallbackLanguage = useMemo(
+    () => detectLang(originalText.slice(0, 4096)),
+    [originalText],
+  );
+  const detectedLanguage =
+    detected?.text === originalText ? detected.language : fallbackLanguage;
+  useEffect(() => {
+    if (
+      config?.sourceLanguage !== "auto" ||
+      !originalText.trim() ||
+      !browser.i18n?.detectLanguage
+    )
+      return;
+    let active = true;
+    const timer = window.setTimeout(() => {
+      void browser.i18n
+        .detectLanguage(originalText.slice(0, 4096))
+        .then((info) => {
+          const best = info.languages[0];
+          const lang = normalizeLang(best?.language);
+          if (
+            active &&
+            best &&
+            (info.isReliable || best.percentage >= 85) &&
+            lang !== "auto"
+          )
+            setDetected({ text: originalText, language: lang });
+        })
+        .catch(() => {});
+    }, 240);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [originalText, config?.sourceLanguage]);
   const [draftReady, setDraftReady] = useState(false);
   const [chatInput, setChatInput] = useState("");
   const [messages, setMessages] = useState<AssistantChatMessage[]>([]);
@@ -137,16 +200,23 @@ export function SidePanel({
       }
     };
     void refreshPage();
+    let historyVersion = 0;
+    const syncHistory = (
+      changes: Record<string, browser.Storage.StorageChange>,
+      area: string,
+    ) => {
+      if (area === "local" && changes[HISTORY_KEY]) {
+        ++historyVersion;
+        const next = changes[HISTORY_KEY].newValue;
+        setHistory(Array.isArray(next) ? next.filter(isHistoryItem) : []);
+      }
+    };
+    browser.storage.onChanged.addListener(syncHistory);
     void loadHistory()
       .then((items) => {
-        if (mounted.current) {
-          setHistory(items);
-          setHistoryReady(true);
-        }
+        if (mounted.current && !historyVersion) setHistory(items);
       })
-      .catch(() => {
-        if (mounted.current) setHistoryReady(true);
-      });
+      .catch(() => {});
     void loadDraft().then((draft) => {
       if (!mounted.current) return;
       if (draft && !edited.current) {
@@ -154,6 +224,35 @@ export function SidePanel({
         setOutput(draft.output);
         setResultSource(draft.resultSource);
         setTool(draft.tool);
+        setReading(draft.reading ?? null);
+        if (
+          draft.reading === undefined &&
+          draft.tool === "translate" &&
+          draft.output &&
+          draft.resultSource === draft.source.trim()
+        ) {
+          void loadHistory()
+            .then((items) => {
+              const old = items.find(
+                (e) =>
+                  e.source === draft.resultSource &&
+                  e.translation === draft.output,
+              );
+              if (old && mounted.current && !edited.current)
+                setReading(
+                  isReadingResult(old.reading)
+                    ? old.reading
+                    : {
+                        from: old.from,
+                        to: old.to,
+                        pairs: [
+                          { source: old.source, translation: old.translation },
+                        ],
+                      },
+                );
+            })
+            .catch(() => {});
+        }
         setAttachment(draft.image);
         setImageOriginal(draft.image ? (draft.imageOriginal ?? "") : "");
       }
@@ -171,6 +270,9 @@ export function SidePanel({
       controller.current?.abort();
       controller.current = undefined;
       setWorking(false);
+      setReading(null);
+      setSelectedTerm(undefined);
+      setUndoPdf(undefined);
       setSource(text.trim());
       setSourceEditing(false);
       imageRevision.current += 1;
@@ -199,6 +301,7 @@ export function SidePanel({
     return () => {
       mounted.current = false;
       controller.current?.abort();
+      browser.storage.onChanged.removeListener(syncHistory);
       window.removeEventListener("hashchange", importSelection);
       browser.tabs.onActivated?.removeListener(refreshPage);
       browser.tabs.onUpdated?.removeListener(refreshPage);
@@ -206,18 +309,13 @@ export function SidePanel({
     };
   }, []);
   useEffect(() => {
-    if (historyReady && config)
-      void saveHistory(history.slice(0, config.sidePanel.historyLimit)).catch(
-        () => setFailure(t("common.saveFailed")),
-      );
-  }, [history, historyReady, config?.sidePanel.historyLimit]);
-  useEffect(() => {
     if (draftReady)
       void saveDraft({
         source,
         output,
         resultSource,
         tool,
+        reading,
         image: attachment,
         imageOriginal,
       });
@@ -229,6 +327,7 @@ export function SidePanel({
     attachment,
     imageOriginal,
     draftReady,
+    reading,
   ]);
   useEffect(() => {
     if (draftReady && !working && !attachment && !source.trim() && output) {
@@ -260,7 +359,83 @@ export function SidePanel({
     config.sidePanel.targetLanguage ?? config.targetLanguage;
   const sourceText = attachment ? imageOriginal : source;
   const sourceHasMath = hasMath(sourceText);
-  const sourcePreview = sourceHasMath && !sourceEditing;
+  const language =
+    config.sourceLanguage === "auto" ? detectedLanguage : config.sourceLanguage;
+  const fresh =
+    !working &&
+    tool === "translate" &&
+    !!output &&
+    resultSource === sourceText.trim();
+  const matched =
+    fresh &&
+    reading &&
+    reading.pairs.map((p) => p.translation).join("\n\n") === output
+      ? reading
+      : null;
+  const pairedView = !!matched && matched.pairs.length > 1 && !sourceEditing;
+  const sourcePreview = sourceHasMath && !sourceEditing && !pairedView;
+  const undoAvailable = !!undoPdf && undoPdf.after === source;
+  const currentEntry = matched
+    ? {
+        source: resultSource,
+        translation: output,
+        reading: matched,
+        from: matched.from,
+        to: matched.to,
+        service,
+        createdAt: Date.now(),
+      }
+    : undefined;
+  const sameEntry = (a: TranslationHistoryItem, b: TranslationHistoryItem) =>
+    a.source === b.source &&
+    a.translation === b.translation &&
+    a.to === b.to &&
+    a.from === b.from;
+  const currentStar =
+    currentEntry &&
+    history.some((item) => item.starred && sameEntry(item, currentEntry));
+  const visibleHistory = history.filter(
+    (item) =>
+      (!onlyStars || item.starred) &&
+      (item.source + "\n" + item.translation)
+        .toLocaleLowerCase()
+        .includes(query.trim().toLocaleLowerCase()),
+  );
+  const mutateHistory = (
+    transform: (items: TranslationHistoryItem[]) => TranslationHistoryItem[],
+  ): void => {
+    const update = async () => {
+      const items = transform(await loadHistory());
+      let recent = 0;
+      const kept = items.filter(
+        (item) => item.starred || ++recent <= config.sidePanel.historyLimit,
+      );
+      await saveHistory(kept);
+      if (mounted.current) setHistory(kept);
+    };
+    void (
+      navigator.locks ? navigator.locks.request(HISTORY_KEY, update) : update()
+    ).catch(() => setFailure(t("common.saveFailed")));
+  };
+  const toggleStar = (item: TranslationHistoryItem) => {
+    mutateHistory((items) => {
+      const existing = items.find((e) => sameEntry(e, item));
+      return existing
+        ? items.map((e) =>
+            sameEntry(e, item) ? { ...e, starred: !existing.starred } : e,
+          )
+        : [{ ...item, starred: true }, ...items];
+    });
+  };
+  const focusPair = (index: number, opposite: "source" | "result") => {
+    setActiveParagraph(index);
+    const el = document.getElementById("read-" + opposite + "-" + index);
+    if (!el) return;
+    const pane = el.closest<HTMLElement>(".side-source-body,.side-result-body");
+    if (pane)
+      pane.scrollTop +=
+        el.getBoundingClientRect().top - pane.getBoundingClientRect().top - 12;
+  };
   const selectedColor =
     previewColor ?? config.sidePanel.backgroundColor ?? themePaper;
   const paper = readablePaperColor(selectedColor);
@@ -305,9 +480,13 @@ export function SidePanel({
       setFailure(t("side.imageService"));
       return;
     }
+    edited.current = true;
     const task = new AbortController();
     controller.current = task;
     setWorking(true);
+    setReading(null);
+    setSelectedTerm(undefined);
+    setActiveParagraph(undefined);
     setSourceEditing(false);
     setFailure(undefined);
     setNotice(undefined);
@@ -332,21 +511,49 @@ export function SidePanel({
         nextTool === "translate" ? undefined : instructions[nextTool],
     };
     try {
-      const result = await runAssistant(
-        client,
-        request,
-        (partial) => {
-          if (!task.signal.aborted && mounted.current) {
+      const parts =
+        nextTool === "translate" && !attachment
+          ? paragraphs(text)
+          : [request.text];
+      const pairs: ParagraphPair[] = [];
+      let result = "";
+      for (const part of parts) {
+        task.signal.throwIfAborted();
+        const terms =
+          nextTool === "translate" && !attachment
+            ? config.glossaries.filter((e) => e.k && part.includes(e.k))
+            : [];
+        const partRequest = { ...request, text: part };
+        if (terms.length)
+          partRequest.instruction =
+            "Translate from " +
+            request.from +
+            " to " +
+            request.to +
+            ". Return only the translation, preserving formulas. Use these glossary entries where applicable: " +
+            JSON.stringify(terms.map((e) => [e.k, e.v]));
+        const prefix = result ? result + "\n\n" : "";
+        const translated = await runAssistant(
+          client,
+          partRequest,
+          (partial) => {
+            if (task.signal.aborted || !mounted.current) return;
             if (attachment) {
               const parsed = parseImageTranslation(partial);
               setImageOriginal(parsed.source);
               setResultSource(parsed.source.trim());
               setOutput(parsed.translation);
-            } else setOutput(partial);
-          }
-        },
-        task.signal,
-      );
+            } else setOutput(prefix + partial);
+          },
+          task.signal,
+        );
+        if (task.signal.aborted || !mounted.current) return;
+        if (!attachment && nextTool === "translate" && !translated.trim())
+          throw new Error(t("read.emptyTranslation"));
+        result = prefix + translated;
+        pairs.push({ source: part, translation: translated });
+        if (!attachment) setOutput(result);
+      }
       if (task.signal.aborted || !mounted.current) return;
       if (attachment) {
         const parsed = parseImageTranslation(result, true);
@@ -354,21 +561,35 @@ export function SidePanel({
         setImageOriginal(parsed.source);
         setResultSource(parsed.source.trim());
         setOutput(parsed.translation);
-      } else setOutput(result);
-      if (nextTool === "translate" && !attachment)
-        setHistory((items) =>
-          [
-            {
-              source: text,
-              translation: result,
-              from: config.sourceLanguage,
-              to: targetLanguage,
-              service,
-              createdAt: Date.now(),
-            },
-            ...items,
-          ].slice(0, config.sidePanel.historyLimit),
-        );
+        if (nextTool === "translate")
+          setReading({
+            from:
+              config.sourceLanguage === "auto"
+                ? detectLang(parsed.source)
+                : config.sourceLanguage,
+            to: targetLanguage,
+            pairs: [{ source: parsed.source, translation: parsed.translation }],
+          });
+      } else if (nextTool === "translate") {
+        const record = { from: language, to: targetLanguage, pairs };
+        setReading(record);
+        const item = {
+          source: text,
+          translation: result,
+          from: language,
+          to: targetLanguage,
+          service,
+          createdAt: Date.now(),
+          reading: record,
+        };
+        mutateHistory((items) => [
+          {
+            ...item,
+            starred: items.some((e) => sameEntry(e, item) && e.starred),
+          },
+          ...items.filter((e) => !sameEntry(e, item)),
+        ]);
+      }
     } catch (cause) {
       if (mounted.current && controller.current === task) {
         if (task.signal.aborted) setNotice(t("side.stopped"));
@@ -442,6 +663,8 @@ export function SidePanel({
       setAttachment(undefined);
       setImageOriginal("");
       setImageLoading(false);
+      setSelectedTerm(undefined);
+      setUndoPdf(undefined);
       setSource(response.text.trim());
       setSourceEditing(false);
       setActiveTab("translate");
@@ -894,16 +1117,39 @@ export function SidePanel({
             class="side-swap"
             title={t("side.swap")}
             aria-label={t("side.swap")}
-            disabled={working || config.sourceLanguage === "auto"}
-            onClick={() =>
-              save((current) => ({
-                sourceLanguage: targetLanguage,
-                sidePanel: {
-                  ...current.sidePanel,
-                  targetLanguage: current.sourceLanguage,
-                },
-              }))
+            disabled={
+              working ||
+              imageLoading ||
+              (output
+                ? !matched || (matched.from === "auto" && language === "auto")
+                : language === "auto" || !!attachment)
             }
+            onClick={() => {
+              const from =
+                matched && matched.from !== "auto" ? matched.from : language;
+              const to = matched?.to ?? targetLanguage;
+              if (matched) {
+                edited.current = true;
+                setAttachment(undefined);
+                setImageOriginal("");
+                setSource(output);
+                setResultSource(output.trim());
+                setSourceEditing(false);
+                setSelectedTerm(undefined);
+                setUndoPdf(undefined);
+                setActiveParagraph(undefined);
+                const reverse = matched.pairs.map((p) => ({
+                  source: p.translation,
+                  translation: p.source,
+                }));
+                setReading({ from: to, to: from, pairs: reverse });
+                setOutput(reverse.map((p) => p.translation).join("\n\n"));
+              }
+              save((current) => ({
+                sourceLanguage: to,
+                sidePanel: { ...current.sidePanel, targetLanguage: from },
+              }));
+            }}
           >
             ⇄
           </Button>
@@ -920,7 +1166,15 @@ export function SidePanel({
                 value={config.sourceLanguage}
                 disabled={working}
                 options={[
-                  { value: "auto", label: languageName("auto") },
+                  {
+                    value: "auto",
+                    label:
+                      detectedLanguage === "auto"
+                        ? languageName("auto")
+                        : t("read.detected", {
+                            language: languageName(detectedLanguage),
+                          }),
+                  },
                   ...languages,
                 ]}
                 onChange={(next) => save({ sourceLanguage: next as LangCode })}
@@ -953,6 +1207,29 @@ export function SidePanel({
                   </figcaption>
                 </figure>
               )}
+              {pairedView && (
+                <div class="side-source-preview side-reading">
+                  {matched!.pairs.map((p, i) => (
+                    <div
+                      key={i}
+                      id={"read-source-" + i}
+                      class="read-paragraph"
+                      role="button"
+                      tabIndex={0}
+                      aria-pressed={activeParagraph === i}
+                      onClick={() => focusPair(i, "result")}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          focusPair(i, "result");
+                        }
+                      }}
+                    >
+                      <MathText text={p.source} />
+                    </div>
+                  ))}
+                </div>
+              )}
               {sourcePreview && (
                 <MathText
                   id="side-source-preview"
@@ -966,7 +1243,7 @@ export function SidePanel({
                 id="side-source"
                 ref={sourceRef}
                 class="side-reading"
-                hidden={sourcePreview}
+                hidden={sourcePreview || pairedView}
                 aria-label={t("side.sourceText")}
                 placeholder={
                   attachment ? t("side.imageOriginalPending") : t("side.noText")
@@ -1008,6 +1285,26 @@ export function SidePanel({
             </div>
             <footer class="side-card-footer">
               <div class="side-source-tools">
+                {!attachment && (cleaned !== source || undoAvailable) && (
+                  <Button
+                    variant="quiet"
+                    disabled={working}
+                    onClick={() => {
+                      edited.current = true;
+                      if (undoAvailable) {
+                        setSource(undoPdf!.before);
+                        setUndoPdf(undefined);
+                      } else {
+                        setUndoPdf({ before: source, after: cleaned });
+                        setSource(cleaned);
+                      }
+                      setSourceEditing(true);
+                      setSelectedTerm(undefined);
+                    }}
+                  >
+                    {undoAvailable ? t("read.undo") : t("read.clean")}
+                  </Button>
+                )}
                 <Button
                   variant="quiet"
                   disabled={working || imageLoading || !page?.url}
@@ -1025,6 +1322,8 @@ export function SidePanel({
                       .readText()
                       .then((text) => {
                         edited.current = true;
+                        setUndoPdf(undefined);
+                        setSelectedTerm(undefined);
                         setSource(text);
                         setSourceEditing(false);
                         sourceRef.current?.focus();
@@ -1074,16 +1373,18 @@ export function SidePanel({
               </div>
               <div class="side-footer-actions">
                 <div class="side-card-actions">
-                  {sourceHasMath && (
+                  {(sourceHasMath || (matched && matched.pairs.length > 1)) && (
                     <Button
                       variant="quiet"
                       disabled={working}
                       aria-controls="side-source side-source-preview"
                       onClick={() => setSourceEditing(!sourceEditing)}
                     >
-                      {sourcePreview
+                      {sourcePreview || pairedView
                         ? t("side.editSource")
-                        : t("side.mathPreview")}
+                        : matched && matched.pairs.length > 1
+                          ? t("read.parallel")
+                          : t("side.mathPreview")}
                     </Button>
                   )}
                   <SpeechButton
@@ -1109,6 +1410,8 @@ export function SidePanel({
                       setAttachment(undefined);
                       setImageOriginal("");
                       setImageLoading(false);
+                      setUndoPdf(undefined);
+                      setSelectedTerm(undefined);
                       setSource("");
                       setSourceEditing(false);
                       setOutput("");
@@ -1175,7 +1478,34 @@ export function SidePanel({
               />
             </header>
             <div class="side-result-body">
-              {output ? (
+              {matched ? (
+                <div class="side-output side-reading">
+                  {matched.pairs.map((p, i) => (
+                    <div
+                      key={i}
+                      id={"read-result-" + i}
+                      class="read-paragraph"
+                      data-active={activeParagraph === i}
+                      tabIndex={0}
+                      title={t("read.pickHint")}
+                      onKeyDown={(e) => {
+                        if (e.key !== "Enter" || e.ctrlKey || e.metaKey) return;
+                        e.preventDefault();
+                        if (matched.pairs.length > 1) focusPair(i, "source");
+                        const picked = pickedTerm(e, i, matched.to);
+                        if (picked) setSelectedTerm(picked);
+                      }}
+                      onClick={(e) => {
+                        if (matched.pairs.length > 1) focusPair(i, "source");
+                        const picked = pickedTerm(e, i, matched.to);
+                        if (picked) setSelectedTerm(picked);
+                      }}
+                    >
+                      <MathText text={p.translation} termOffsets />
+                    </div>
+                  ))}
+                </div>
+              ) : output ? (
                 <MathText
                   class="side-output side-reading"
                   text={output}
@@ -1195,6 +1525,89 @@ export function SidePanel({
                 )}
             </div>
             <footer class="side-card-footer">
+              {matched && !selectedTerm && (
+                <small class="term-hint">{t("read.pickHint")}</small>
+              )}
+              {matched &&
+                selectedTerm &&
+                matched.pairs[selectedTerm.paragraph]?.translation.slice(
+                  selectedTerm.start,
+                  selectedTerm.end,
+                ) === selectedTerm.word && (
+                  <TermEditor
+                    key={[
+                      selectedTerm.paragraph,
+                      selectedTerm.start,
+                      selectedTerm.end,
+                      selectedTerm.word,
+                      output,
+                      service,
+                    ].join("|")}
+                    selection={selectedTerm}
+                    pair={matched.pairs[selectedTerm.paragraph]}
+                    client={client}
+                    service={service}
+                    from={matched.from}
+                    to={matched.to}
+                    entries={config.glossaries}
+                    onClose={() => setSelectedTerm(undefined)}
+                    onSave={async (k, v) => {
+                      await updateConfig((current) => ({
+                        glossaries: [
+                          ...current.glossaries.filter(
+                            (e) => e.k !== k || !!e.domain,
+                          ),
+                          { k, v },
+                        ],
+                      }));
+                    }}
+                    onReplace={(replacement) => {
+                      const pairs = matched.pairs.map((p, i) =>
+                        i !== selectedTerm.paragraph
+                          ? p
+                          : {
+                              ...p,
+                              translation:
+                                p.translation.slice(0, selectedTerm.start) +
+                                replacement +
+                                p.translation.slice(selectedTerm.end),
+                            },
+                      );
+                      const revised = { ...matched, pairs };
+                      if (currentEntry && !attachment) {
+                        const changed = {
+                          ...currentEntry,
+                          translation: pairs
+                            .map((p) => p.translation)
+                            .join("\n\n"),
+                          reading: revised,
+                        };
+                        mutateHistory((items) => {
+                          const prior = items.find((e) =>
+                            sameEntry(e, currentEntry),
+                          );
+                          const duplicate = items.find((e) =>
+                            sameEntry(e, changed),
+                          );
+                          return [
+                            {
+                              ...changed,
+                              starred: !!(prior?.starred || duplicate?.starred),
+                            },
+                            ...items.filter(
+                              (e) =>
+                                !sameEntry(e, currentEntry) &&
+                                !sameEntry(e, changed),
+                            ),
+                          ];
+                        });
+                      }
+                      setReading(revised);
+                      setOutput(pairs.map((p) => p.translation).join("\n\n"));
+                      setSelectedTerm(undefined);
+                    }}
+                  />
+                )}
               <div
                 class="side-text-tools"
                 role="group"
@@ -1239,6 +1652,29 @@ export function SidePanel({
                     }}
                   >
                     {t("side.copyResult")}
+                  </Button>
+                  <Button
+                    variant="quiet"
+                    disabled={!matched}
+                    onClick={() => {
+                      if (matched)
+                        void navigator.clipboard
+                          .writeText(bilingualText(matched.pairs))
+                          .then(() => setNotice(t("side.copied")))
+                          .catch(() => setFailure(t("side.copyFailed")));
+                    }}
+                  >
+                    {t("read.copyBoth")}
+                  </Button>
+                  <Button
+                    variant="quiet"
+                    disabled={!currentEntry}
+                    aria-pressed={!!currentStar}
+                    onClick={() => {
+                      if (currentEntry) toggleStar(currentEntry);
+                    }}
+                  >
+                    {currentStar ? t("read.unstar") : t("read.star")}
                   </Button>
                 </div>
               </div>
@@ -1394,8 +1830,24 @@ export function SidePanel({
           </summary>
           {history.length ? (
             <>
+              <div class="read-library-tools">
+                <input
+                  type="search"
+                  aria-label={t("read.search")}
+                  placeholder={t("read.search")}
+                  value={query}
+                  onInput={(e) => setQuery(e.currentTarget.value)}
+                />
+                <Button
+                  aria-pressed={onlyStars}
+                  onClick={() => setOnlyStars(!onlyStars)}
+                >
+                  {t("read.stars")}
+                </Button>
+              </div>
+              {!visibleHistory.length && <p>{t("read.noMatch")}</p>}
               <ol class="side-history">
-                {history.slice(0, config.sidePanel.historyLimit).map((item) => (
+                {visibleHistory.map((item) => (
                   <li key={`${item.createdAt}-${item.source}`}>
                     <button
                       type="button"
@@ -1406,6 +1858,23 @@ export function SidePanel({
                         setImageLoading(false);
                         setAttachment(undefined);
                         setImageOriginal("");
+                        setSelectedTerm(undefined);
+                        setUndoPdf(undefined);
+                        setActiveParagraph(undefined);
+                        setReading(
+                          isReadingResult(item.reading)
+                            ? item.reading
+                            : {
+                                from: item.from,
+                                to: item.to,
+                                pairs: [
+                                  {
+                                    source: item.source,
+                                    translation: item.translation,
+                                  },
+                                ],
+                              },
+                        );
                         setSource(item.source);
                         setSourceEditing(false);
                         setOutput(item.translation);
@@ -1425,10 +1894,22 @@ export function SidePanel({
                       <strong>{item.source}</strong>
                       <span>{item.translation}</span>
                     </button>
+                    <Button
+                      variant="quiet"
+                      aria-pressed={!!item.starred}
+                      onClick={() => toggleStar(item)}
+                    >
+                      {item.starred ? t("read.unstar") : t("read.star")}
+                    </Button>
                   </li>
                 ))}
               </ol>
-              <Button variant="quiet" onClick={() => setHistory([])}>
+              <Button
+                variant="quiet"
+                onClick={() =>
+                  mutateHistory((items) => items.filter((e) => e.starred))
+                }
+              >
                 {t("side.clearHistory")}
               </Button>
             </>
