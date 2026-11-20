@@ -34,6 +34,7 @@ import {
 } from "../../background/services/chatgpt-oauth/reasoning";
 import type { KConfig } from "../../shared/k-types";
 import { Button, Card, Field, Select, Toggle } from "../shared/components";
+import { ModelPicker } from "../shared/model-picker";
 import { parseConfigImport, serializeConfig } from "../shared/config-transfer";
 import {
   languageName,
@@ -586,26 +587,23 @@ function ServiceField({
       </Field>
     );
   }
-  const modelOptions =
-    descriptor.type === "model"
-      ? getModels(serviceId, service.models)
-      : undefined;
+  if (descriptor.type === "model") {
+    return (
+      <Field label={label} htmlFor={id}>
+        <ModelPicker
+          id={id}
+          value={value}
+          models={getModels(serviceId, service.models)}
+          placeholder={serviceId === "chatgpt" ? DEFAULT_CHATGPT_MODEL : undefined}
+          onChange={onChange}
+        />
+      </Field>
+    );
+  }
   const input = (
     <input
       id={id}
-      type={
-        descriptor.type === "password" && showKey
-          ? "text"
-          : descriptor.type === "model"
-            ? "text"
-            : descriptor.type
-      }
-      list={modelOptions?.length ? `${id}-models` : undefined}
-      placeholder={
-        serviceId === "chatgpt" && descriptor.type === "model"
-          ? DEFAULT_CHATGPT_MODEL
-          : undefined
-      }
+      type={descriptor.type === "password" && showKey ? "text" : descriptor.type}
       value={value}
       onInput={(event) => onChange(event.currentTarget.value)}
     />
@@ -620,16 +618,7 @@ function ServiceField({
           </button>
         </div>
       ) : (
-        <>
-          {input}
-          {modelOptions?.length ? (
-            <datalist id={`${id}-models`}>
-              {modelOptions.map((model) => (
-                <option key={model} value={model} />
-              ))}
-            </datalist>
-          ) : null}
-        </>
+        input
       )}
     </Field>
   );

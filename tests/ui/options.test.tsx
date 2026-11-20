@@ -84,6 +84,16 @@ describe("Options", () => {
     await waitFor(() =>
       expect(stored.services["openai-compatible"]?.model).toBe("gpt-test"),
     );
+
+    const modelPicker = screen.getByRole("button", { name: "选择模型" });
+    fireEvent.click(modelPicker);
+    const choices = screen.getByRole("list", { name: "选择模型" });
+    const model = within(choices).getByRole("button", { name: "gpt-4o", exact: true });
+    fireEvent.click(model);
+    await waitFor(() =>
+      expect(stored.services["openai-compatible"]?.model).toBe("gpt-4o"),
+    );
+    expect(modelPicker.getAttribute("aria-expanded")).toBe("false");
   });
 
   it("sends service connection tests and displays the result", async () => {

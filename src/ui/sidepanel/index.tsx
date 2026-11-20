@@ -34,6 +34,7 @@ import type {
   TranslationMode,
 } from "../../shared/types";
 import { Button, Field, Select, Toggle } from "../shared/components";
+import { ModelPicker } from "../shared/model-picker";
 import {
   currentUiLocale,
   languageName,
@@ -975,15 +976,16 @@ export function SidePanel({
             />
           </Field>
           <Field label={t("side.model")} htmlFor="side-model">
-            <input
+            <ModelPicker
+              key={service}
               id="side-model"
-              type="text"
               value={model}
-              list="side-models"
+              models={getModels(service, serviceConfig?.models)}
               disabled={working}
               placeholder={t("common.auto")}
-              onChange={(event) => {
-                const next = event.currentTarget.value.trim();
+              commitOnBlur
+              onChange={(value) => {
+                const next = value.trim();
                 saveService({
                   model: next || undefined,
                   ...(service === "chatgpt"
@@ -1003,11 +1005,6 @@ export function SidePanel({
                 });
               }}
             />
-            <datalist id="side-models">
-              {getModels(service, serviceConfig?.models).map((value) => (
-                <option key={value} value={value} />
-              ))}
-            </datalist>
           </Field>
           {service === "chatgpt" && (
             <Field label={t("side.reasoning")} htmlFor="side-reasoning">

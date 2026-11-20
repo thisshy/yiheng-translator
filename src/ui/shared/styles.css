@@ -107,6 +107,52 @@ a {
   color: var(--ui-muted);
 }
 
+.ui-model-picker {
+  position: relative;
+  min-width: 0;
+}
+
+.ui-model-picker[data-choices] > input {
+  padding-inline-end: 38px;
+}
+
+.ui-model-picker > .ui-model-trigger {
+  position: absolute;
+  inset-block: 1px;
+  inset-inline-end: 1px;
+  width: 36px;
+  min-height: 0;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+}
+
+.ui-model-list {
+  position: absolute;
+  z-index: 10;
+  inset-inline: 0;
+  inset-block-start: calc(100% + 4px);
+  max-block-size: min(18rem, 45dvh);
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px;
+  border: 1px solid var(--ui-border);
+  border-radius: 7px;
+  background: var(--ui-panel);
+  box-shadow: var(--ui-shadow);
+  list-style: none;
+}
+
+.ui-model-list .ui-button {
+  width: 100%;
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+
+.ui-model-list [aria-current="true"] {
+  background: var(--ui-accent-soft);
+}
+
 .ui-toggle {
   display: flex;
   align-items: center;
