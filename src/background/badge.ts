@@ -103,7 +103,7 @@ export class PageBadgeController {
     this.states.delete(tabId);
     await Promise.all([
       this.action.setBadgeText({ tabId, text: "" }),
-      this.action.setTitle({ tabId, title: "Bilingual Translator" }),
+      this.action.setTitle({ tabId, title: "译衡 · 打开翻译工作台" }),
     ]);
   }
 

@@ -1,5 +1,5 @@
 const zhCN = {
-  "app.name": "双语翻译",
+  "app.name": "译衡",
   "common.loading": "正在加载…",
   "common.saveFailed": "保存失败",
   "common.none": "无",
@@ -41,7 +41,7 @@ const zhCN = {
   "popup.configTransfer": "导出/导入配置",
   "mode.dual": "双语",
   "mode.translation": "仅译文",
-  "options.title": "双语翻译设置",
+  "options.title": "译衡设置",
   "tab.basic": "基本",
   "tab.services": "翻译服务",
   "tab.features": "输入框 / 划词 / 悬停",
@@ -331,7 +331,7 @@ export type UiLocale = "zh-CN" | "zh-TW" | "ja" | "en";
 export type UiLocaleSetting = UiLocale | "auto";
 
 const en: Record<I18nKey, string> = {
-  "app.name": "Bilingual Translator",
+  "app.name": "Yiheng Translator",
   "common.loading": "Loading…",
   "common.saveFailed": "Could not save",
   "common.none": "None",
@@ -373,7 +373,7 @@ const en: Record<I18nKey, string> = {
   "popup.configTransfer": "Export/import configuration",
   "mode.dual": "Bilingual",
   "mode.translation": "Translation only",
-  "options.title": "Bilingual Translator settings",
+  "options.title": "Yiheng Translator settings",
   "tab.basic": "General",
   "tab.services": "Translation services",
   "tab.features": "Input / selection / hover",
@@ -667,7 +667,7 @@ const en: Record<I18nKey, string> = {
 
 const zhTW: Partial<Record<I18nKey, string>> = {
   ...zhCN,
-  "app.name": "雙語翻譯",
+  "app.name": "譯衡",
   "common.loading": "正在載入…",
   "common.saveFailed": "儲存失敗",
   "common.none": "無",
@@ -707,7 +707,7 @@ const zhTW: Partial<Record<I18nKey, string>> = {
   "popup.configTransfer": "匯出/匯入設定",
   "mode.dual": "雙語",
   "mode.translation": "僅譯文",
-  "options.title": "雙語翻譯設定",
+  "options.title": "譯衡設定",
   "tab.basic": "基本",
   "tab.services": "翻譯服務",
   "tab.features": "輸入框 / 劃詞 / 懸停",
@@ -906,7 +906,7 @@ const zhTW: Partial<Record<I18nKey, string>> = {
 
 const ja: Partial<Record<I18nKey, string>> = {
   ...en,
-  "app.name": "バイリンガル翻訳",
+  "app.name": "Yiheng Translator",
   "common.loading": "読み込み中…",
   "common.saveFailed": "保存できませんでした",
   "common.none": "なし",
@@ -948,7 +948,7 @@ const ja: Partial<Record<I18nKey, string>> = {
   "popup.configTransfer": "設定のエクスポート/インポート",
   "mode.dual": "バイリンガル",
   "mode.translation": "翻訳のみ",
-  "options.title": "バイリンガル翻訳の設定",
+  "options.title": "Yiheng Translator の設定",
   "tab.basic": "基本",
   "tab.services": "翻訳サービス",
   "tab.features": "入力 / 選択 / ホバー",

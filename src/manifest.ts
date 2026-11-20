@@ -2,9 +2,9 @@ import { defineManifest } from "@crxjs/vite-plugin";
 
 export default defineManifest({
   manifest_version: 3,
-  name: "Bilingual Translator",
+  name: "译衡",
   description: "Paragraph-level bilingual web translation.",
-  version: "0.0.12",
+  version: "0.0.13",
   permissions: [
     "storage",
     "alarms",
@@ -80,6 +80,6 @@ export default defineManifest({
   },
   options_page: "options.html",
   action: {
-    default_title: "打开翻译工作台",
+    default_title: "译衡 · 打开翻译工作台",
   },
 });

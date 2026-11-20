@@ -1,8 +1,12 @@
-# 开源版沉浸式翻译
+# 译衡
+
+译衡是一款开源双语翻译扩展，支持网页原文与译文对照、独立翻译工作台和 LaTeX 公式渲染，也可以使用 ChatGPT 账号作为翻译服务。
+
+本项目基于 [ymcwiki/open-immersive-translate](https://github.com/ymcwiki/open-immersive-translate) 独立维护，沿用 [MIT 许可证](LICENSE)，保留上游作者署名。
 
 **沉浸式翻译（Immersive Translate）是闭源软件。** 它的 Chrome 扩展包是 12 MB 压缩混淆过的 JavaScript，没有源码、没有 source map，用户无法审计它发出了什么请求、无法修改它的行为，也无法在它停止维护时自救。
 
-这个仓库是一个从零编写、MIT 许可的开源替代品。功能对照它 1.32.7 版本逐项复刻（见 [docs/FEATURE_PARITY.md](docs/FEATURE_PARITY.md)，105 项中 102 项完成），全部代码可读、可改、可自行构建。
+上游是一个从零编写的开源替代品，按沉浸式翻译 1.32.7 逐项核对功能（见 [docs/FEATURE_PARITY.md](docs/FEATURE_PARITY.md)，105 项中 102 项完成），代码可自行审阅、修改和构建。
 
 - 和 immersivetranslate.com 没有任何关联，也不使用它的任何代码。
 - 没有账号系统、没有付费墙、没有埋点上报。翻译请求只发往你自己配置的服务。
