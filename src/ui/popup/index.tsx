@@ -259,8 +259,8 @@ export function Popup(): preact.JSX.Element {
                 }
               />
               <MenuButton
-                label={t("popup.openSidePanel")}
-                onClick={() => void openSidePanel(activeTab.id)}
+                label={t("popup.openTranslationWorkspace")}
+                onClick={() => void openTranslationWorkspace(activeTab.id)}
               />
               <MenuButton
                 label={t("popup.translatePdf")}
@@ -313,20 +313,9 @@ async function openExtensionPage(path: string): Promise<void> {
   await browser.tabs.create({ url: browser.runtime.getURL(path) });
 }
 
-async function openSidePanel(tabId: number | undefined): Promise<void> {
+async function openTranslationWorkspace(tabId: number | undefined): Promise<void> {
   if (tabId === undefined) return;
-  const sidePanel = (
-    globalThis as unknown as {
-      chrome?: {
-        sidePanel?: { open(options: { tabId: number }): Promise<void> };
-      };
-    }
-  ).chrome?.sidePanel;
-  if (sidePanel) {
-    await sidePanel.open({ tabId });
-    return;
-  }
-  await browser.runtime.sendMessage({ type: "openSidePanel", tabId });
+  await browser.runtime.sendMessage({ type: "openTranslationWorkspace", tabId });
 }
 
 async function getActiveTab(): Promise<ActiveTab> {

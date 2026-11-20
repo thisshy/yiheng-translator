@@ -18,7 +18,7 @@ export type ExtensionCommandId = (typeof EXTENSION_COMMAND_IDS)[number];
 export type CommandRoute =
   | { kind: "controller"; command: PageCommandId }
   | { kind: "tab"; message: "translateInput" | "openAiWriting" }
-  | { kind: "sidePanel" };
+  | { kind: "workspace" };
 
 export const COMMAND_ROUTES: Readonly<
   Record<ExtensionCommandId, CommandRoute>
@@ -91,7 +91,7 @@ export const COMMAND_ROUTES: Readonly<
     kind: "controller",
     command: "translateWithCustom3",
   },
-  toggleSidePanel: { kind: "sidePanel" },
+  toggleSidePanel: { kind: "workspace" },
   translateInputBox: { kind: "tab", message: "translateInput" },
   openAiWritingModal: { kind: "tab", message: "openAiWriting" },
 };
@@ -100,7 +100,7 @@ export interface CommandRouterDependencies {
   getActiveTabId(): Promise<number | undefined>;
   sendControllerCommand(tabId: number, command: PageCommandId): Promise<void>;
   sendTabMessage(tabId: number, message: TabMessage): Promise<void>;
-  openSidePanel(tabId: number): Promise<void>;
+  openTranslationWorkspace(tabId: number): Promise<void>;
 }
 
 export function isExtensionCommandId(
@@ -120,8 +120,8 @@ export async function routeExtensionCommand(
   const route = COMMAND_ROUTES[command];
   if (route.kind === "controller") {
     await dependencies.sendControllerCommand(tabId, route.command);
-  } else if (route.kind === "sidePanel") {
-    await dependencies.openSidePanel(tabId);
+  } else if (route.kind === "workspace") {
+    await dependencies.openTranslationWorkspace(tabId);
   } else {
     const message: TabMessage =
       route.message === "translateInput"

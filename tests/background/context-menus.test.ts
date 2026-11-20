@@ -13,7 +13,7 @@ function dependencies(): ContextMenuDependencies {
     sendControllerCommand: vi.fn().mockResolvedValue(undefined),
     sendTabMessage: vi.fn().mockResolvedValue(undefined),
     openExtensionPage: vi.fn().mockResolvedValue(undefined),
-    openSidePanel: vi.fn().mockResolvedValue(undefined),
+    openTranslationWorkspace: vi.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -63,7 +63,10 @@ describe("context menus", () => {
       target,
     );
     await routeContextMenuClick(
-      { menuItemId: CONTEXT_MENU_IDS.openSidePanel },
+      {
+        menuItemId: CONTEXT_MENU_IDS.openTranslationWorkspace,
+        selectionText: "  for the workspace  ",
+      },
       tab,
       target,
     );
@@ -85,6 +88,8 @@ describe("context menus", () => {
       2,
       "src/subtitle-file/index.html",
     );
-    expect(target.openSidePanel).toHaveBeenCalledWith(42);
+    expect(target.openTranslationWorkspace).toHaveBeenCalledWith(
+      "for the workspace",
+    );
   });
 });

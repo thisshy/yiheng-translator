@@ -77,6 +77,7 @@ afterEach(() => {
 
 describe("Popup", () => {
   it("renders controls, sends the tab toggle, and persists selections", async () => {
+    stored.service = "google";
     render(<Popup />);
 
     const toggle = await screen.findByRole("button", { name: "翻译" });
@@ -158,9 +159,9 @@ describe("Popup", () => {
     expect(browserMock.tabs.create).toHaveBeenCalledWith({
       url: "chrome-extension://test/src/subtitle-file/index.html",
     });
-    fireEvent.click(screen.getByRole("menuitem", { name: "打开侧边栏" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "打开翻译工作台" }));
     expect(browserMock.runtime.sendMessage).toHaveBeenCalledWith({
-      type: "openSidePanel",
+      type: "openTranslationWorkspace",
       tabId: 42,
     });
     fireEvent.click(screen.getByRole("menuitem", { name: "导出/导入配置" }));

@@ -488,15 +488,8 @@ export function ExpandedFeatureCards({
         </div>
       </Card>
 
-      <Card title={t("features.sidePanel")}>
+      <Card title={t("features.translationWorkspace")}>
         <div class="form-grid two-columns">
-          <Toggle
-            checked={config.sidePanel.enabled}
-            label={t("common.enabled")}
-            onChange={(enabled) =>
-              void onPatch({ sidePanel: { ...config.sidePanel, enabled } })
-            }
-          />
           <Field label={t("features.aiService")} htmlFor="side-panel-service">
             <Select
               id="side-panel-service"
@@ -507,7 +500,7 @@ export function ExpandedFeatureCards({
               }
             />
           </Field>
-          <Field label="侧边栏目标语言" htmlFor="side-panel-language">
+          <Field label={t("features.workspaceTargetLanguage")} htmlFor="side-panel-language">
             <Select
               id="side-panel-language"
               value={config.sidePanel.targetLanguage ?? ""}

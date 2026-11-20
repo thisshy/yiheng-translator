@@ -33,6 +33,8 @@ const browserMock = vi.hoisted(() => {
       openOptionsPage: vi.fn().mockResolvedValue(undefined),
     },
     tabs: {
+      getCurrent: vi.fn().mockResolvedValue(undefined),
+      get: vi.fn(),
       query: vi.fn(),
       sendMessage: vi.fn(),
       captureVisibleTab: vi.fn(),
@@ -42,7 +44,7 @@ const browserMock = vi.hoisted(() => {
     },
     storage: {
       local: { get: vi.fn(), set: vi.fn() },
-      session: { get: vi.fn(), set: vi.fn() },
+      session: { get: vi.fn(), set: vi.fn(), remove: vi.fn() },
       onChanged: { addListener: vi.fn(), removeListener: vi.fn() },
     },
   };
@@ -113,6 +115,11 @@ beforeEach(() => {
     kSidePanelHistory: [],
   };
   session = {};
+  window.history.replaceState(null, "", window.location.pathname);
+  browserMock.tabs.getCurrent.mockReset().mockResolvedValue(undefined);
+  browserMock.storage.session.remove.mockImplementation(async (key) => {
+    delete session[key];
+  });
   currentTab = {
     id: 8,
     title: "Article",
@@ -195,23 +202,30 @@ describe("SidePanel", () => {
     const assistant = idleAssistant();
     render(<SidePanel assistant={assistant} />);
     const source = await screen.findByLabelText("输入要翻译的文字");
-    expect(document.activeElement).toBe(source);
+    await waitFor(() => expect(document.activeElement).toBe(source));
     expect(
       screen.getByRole<HTMLButtonElement>("button", { name: "翻译文字" })
         .disabled,
     ).toBe(true);
-    fireEvent.click(screen.getByRole("button", { name: "读取网页选中内容" }));
+    const readSelection = screen.getByRole<HTMLButtonElement>("button", {
+      name: "读取网页选中内容",
+    });
+    await waitFor(() => expect(readSelection.disabled).toBe(false));
+    fireEvent.click(readSelection);
     await screen.findByDisplayValue("selected sentence");
     expect(browserMock.tabs.sendMessage).toHaveBeenCalledWith(
       8,
       { type: "getSelectionText" },
       { frameId: 0 },
     );
+    const token = "11111111-1111-1111-1111-111111111111";
+    session[`kWorkspaceSelection:${token}`] = " new selection ";
     act(() => {
-      for (const listener of browserMock.messageListeners)
-        listener({ type: "sidePanelSelection", text: " new selection " });
+      window.history.replaceState(null, "", `#${token}`);
+      window.dispatchEvent(new Event("hashchange"));
     });
     await screen.findByDisplayValue("new selection");
+    expect(window.location.hash).toBe("");
     expect(assistant.complete).not.toHaveBeenCalled();
     expect(assistant.stream).not.toHaveBeenCalled();
     expect(assistant.supportsStreaming).not.toHaveBeenCalled();

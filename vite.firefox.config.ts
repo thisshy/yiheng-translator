@@ -136,7 +136,6 @@ async function resolveChromeManifest(
 
 export default defineConfig(async (env) => {
   const sourceManifest = await resolveChromeManifest(env);
-  const sidePanelPath = getSidePanelPath(sourceManifest);
   const manifest = transformFirefoxManifest(sourceManifest);
 
   return {
@@ -151,17 +150,13 @@ export default defineConfig(async (env) => {
       emptyOutDir: false,
       rollupOptions: {
         input: {
+          translator: fileURLToPath(
+            new URL("./translator.html", import.meta.url),
+          ),
           pdf: fileURLToPath(new URL("./src/pdf/index.html", import.meta.url)),
           subtitleFile: fileURLToPath(
             new URL("./src/subtitle-file/index.html", import.meta.url),
           ),
-          ...(sidePanelPath
-            ? {
-                sidePanel: fileURLToPath(
-                  new URL(`./${sidePanelPath}`, import.meta.url),
-                ),
-              }
-            : {}),
         },
       },
     },

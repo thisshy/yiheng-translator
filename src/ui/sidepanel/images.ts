@@ -98,8 +98,14 @@ export async function readClipboardImage(): Promise<ImageAttachment> {
   );
 }
 
-export async function captureTabImage(): Promise<ImageAttachment> {
-  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+export async function captureTabImage(
+  workspace?: browser.Tabs.Tab,
+): Promise<ImageAttachment> {
+  const tab = workspace
+    ? workspace.openerTabId === undefined
+      ? undefined
+      : await browser.tabs.get(workspace.openerTabId).catch(() => undefined)
+    : (await browser.tabs.query({ active: true, currentWindow: true }))[0];
   if (!tab?.url || !/^https?:\/\//i.test(tab.url)) {
     throw new Error(
       "这个页面无法截图，请先打开普通网页，或截图后按 Ctrl+V 粘贴。",
@@ -108,11 +114,23 @@ export async function captureTabImage(): Promise<ImageAttachment> {
 
   let dataUrl: string;
   try {
+    if (workspace && tab.id !== undefined) {
+      await browser.tabs.update(tab.id, { active: true });
+    }
     dataUrl = await browser.tabs.captureVisibleTab(tab.windowId, {
       format: "png",
     });
   } catch {
     throw new Error("当前网页截图失败，请使用系统截图后按 Ctrl+V 粘贴。");
+  } finally {
+    if (workspace?.id !== undefined && tab.id !== undefined) {
+      const source = await browser.tabs.get(tab.id).catch(() => undefined);
+      if (source?.active) {
+        await browser.tabs
+          .update(workspace.id, { active: true })
+          .catch(() => {});
+      }
+    }
   }
 
   return {

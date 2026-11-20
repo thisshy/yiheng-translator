@@ -4,7 +4,7 @@ export default defineManifest({
   manifest_version: 3,
   name: "Bilingual Translator",
   description: "Paragraph-level bilingual web translation.",
-  version: "0.0.11",
+  version: "0.0.12",
   permissions: [
     "storage",
     "alarms",
@@ -14,7 +14,6 @@ export default defineManifest({
     "tabs",
     "webNavigation",
     "webRequest",
-    "sidePanel",
   ],
   host_permissions: ["<all_urls>"],
   background: {
@@ -75,15 +74,12 @@ export default defineManifest({
       description: "Translate the active input",
     },
     toggleSidePanel: {
-      description: "Open the translation side panel",
+      description: "Open the translation workspace",
     },
     openAiWritingModal: { description: "Open AI writing" },
   },
-  side_panel: {
-    default_path: "src/ui/sidepanel/index.html",
-  },
   options_page: "options.html",
   action: {
-    default_title: "打开翻译侧边栏",
+    default_title: "打开翻译工作台",
   },
 });

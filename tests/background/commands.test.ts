@@ -13,7 +13,7 @@ function dependencies(): CommandRouterDependencies {
     getActiveTabId: vi.fn().mockResolvedValue(42),
     sendControllerCommand: vi.fn().mockResolvedValue(undefined),
     sendTabMessage: vi.fn().mockResolvedValue(undefined),
-    openSidePanel: vi.fn().mockResolvedValue(undefined),
+    openTranslationWorkspace: vi.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -44,14 +44,14 @@ describe("manifest command routing", () => {
     expect(target.sendControllerCommand).toHaveBeenCalledWith(42, command);
   });
 
-  it("routes the side panel, input box, and AI writing feature commands", async () => {
+  it("routes the translation workspace, input box, and AI writing feature commands", async () => {
     const target = dependencies();
 
     await routeExtensionCommand("toggleSidePanel", target);
     await routeExtensionCommand("translateInputBox", target);
     await routeExtensionCommand("openAiWritingModal", target);
 
-    expect(target.openSidePanel).toHaveBeenCalledWith(42);
+    expect(target.openTranslationWorkspace).toHaveBeenCalledWith(42);
     expect(target.sendTabMessage).toHaveBeenCalledWith(42, {
       type: "translateInput",
       tabId: 42,

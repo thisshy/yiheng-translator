@@ -375,7 +375,7 @@ test("translates every cue in a local SRT file", async ({ playwright }) => {
   }
 });
 
-test("loads the side panel and round-trips text through the mock service", async ({
+test("loads the translation workspace and round-trips text through the mock service", async ({
   playwright,
 }) => {
   const { context, worker, extensionId } = await launchExtension(playwright);
@@ -383,18 +383,18 @@ test("loads the side panel and round-trips text through the mock service", async
     await selectMockService(worker);
     const page = await context.newPage();
     await page.goto(
-      `chrome-extension://${extensionId}/src/ui/sidepanel/index.html`,
+      `chrome-extension://${extensionId}/translator.html`,
     );
     await page
       .getByRole("textbox", {
         name: /输入要翻译的文字|Enter text to translate/u,
       })
-      .fill("Side panel sample");
+      .fill("Workspace sample");
     await page
       .getByRole("button", { name: /翻译文字|Translate text/u })
       .click();
     await expect(page.locator(".side-output")).toHaveText(
-      "[zh] Side panel sample",
+      "[zh] Workspace sample",
     );
   } finally {
     await context.close();

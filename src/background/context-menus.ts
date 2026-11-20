@@ -6,7 +6,7 @@ export const CONTEXT_MENU_IDS = {
   translateSelection: "imt-translate-selection",
   translatePdf: "imt-translate-pdf",
   translateSubtitle: "imt-translate-subtitle",
-  openSidePanel: "imt-open-side-panel",
+  openTranslationWorkspace: "imt-open-translation-workspace",
 } as const;
 
 export interface ContextMenuCreateProperties {
@@ -33,7 +33,7 @@ export interface ContextMenuDependencies {
   sendControllerCommand(tabId: number, command: PageCommandId): Promise<void>;
   sendTabMessage(tabId: number, message: TabMessage): Promise<void>;
   openExtensionPage(path: string): Promise<void>;
-  openSidePanel(tabId: number): Promise<void>;
+  openTranslationWorkspace(selection?: string): Promise<void>;
 }
 
 const MENU_DEFINITIONS: readonly ContextMenuCreateProperties[] = [
@@ -58,8 +58,8 @@ const MENU_DEFINITIONS: readonly ContextMenuCreateProperties[] = [
     contexts: ["page"],
   },
   {
-    id: CONTEXT_MENU_IDS.openSidePanel,
-    title: "打开侧边栏",
+    id: CONTEXT_MENU_IDS.openTranslationWorkspace,
+    title: "打开翻译工作台",
     contexts: ["page", "selection"],
   },
 ];
@@ -104,8 +104,8 @@ export async function routeContextMenuClick(
     await dependencies.openExtensionPage("src/subtitle-file/index.html");
     return true;
   }
-  if (id === CONTEXT_MENU_IDS.openSidePanel) {
-    await dependencies.openSidePanel(tabId);
+  if (id === CONTEXT_MENU_IDS.openTranslationWorkspace) {
+    await dependencies.openTranslationWorkspace(info.selectionText?.trim() || undefined);
     return true;
   }
   return false;

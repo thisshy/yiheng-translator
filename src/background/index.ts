@@ -46,6 +46,7 @@ import {
   assertAssistantRequestSupported,
   completeAssistantRequest,
 } from "./services/assistant";
+import { openTranslationWorkspace } from "./translation-workspace";
 import { runServiceTest } from "./service-test";
 import {
   cancelChatgptOauth,
@@ -55,19 +56,6 @@ import {
   registerChatgptOauthPolling,
   startChatgptOauth,
 } from "./services/chatgpt-oauth/auth";
-
-interface NativeSidePanelApi {
-  open(options: { tabId: number }): Promise<void>;
-  setPanelBehavior(options: { openPanelOnActionClick: boolean }): Promise<void>;
-}
-
-function sidePanelApi(): NativeSidePanelApi | undefined {
-  return (
-    globalThis as unknown as {
-      chrome?: { sidePanel?: NativeSidePanelApi };
-    }
-  ).chrome?.sidePanel;
-}
 
 function actionApi(): BadgeActionApi {
   const native = (
@@ -80,12 +68,6 @@ initTranslationServices();
 registerRemoteRules();
 initPdfInterception();
 registerChatgptOauthPolling();
-// Reapply on every worker start, including extension reload and browser restart.
-void sidePanelApi()
-  ?.setPanelBehavior({ openPanelOnActionClick: true })
-  .catch((error: unknown) => {
-    console.warn("[imt] Side panel action setup failed", error);
-  });
 const pageBadges = new PageBadgeController(actionApi());
 
 async function configuredRule(url: string): Promise<Rule> {
@@ -235,13 +217,11 @@ browser.runtime.onMessage.addListener(
         return configuredService(request.serviceId).then(({ service }) => ({
           streaming: typeof service.onPartial === "function",
         }));
-      case "openSidePanel": {
-        const api = sidePanelApi();
-        if (!api) return Promise.resolve({ opened: false });
-        return api
-          .open({ tabId: request.tabId })
+      case "openTranslationWorkspace":
+        return browser.tabs
+          .get(request.tabId)
+          .then((tab) => openTranslationWorkspace(tab))
           .then(() => ({ opened: true }));
-      }
       default:
         return undefined;
     }
@@ -377,10 +357,16 @@ browser.commands.onCommand.addListener((command) => {
     async sendTabMessage(tabId, message) {
       await browser.tabs.sendMessage(tabId, message, { frameId: 0 });
     },
-    async openSidePanel(tabId) {
-      await sidePanelApi()?.open({ tabId });
+    async openTranslationWorkspace(tabId) {
+      await openTranslationWorkspace(await browser.tabs.get(tabId));
     },
   }).catch(() => undefined);
+});
+
+browser.action.onClicked.addListener((tab) => {
+  void openTranslationWorkspace(tab).catch((error: unknown) => {
+    console.warn("[imt] Could not open translation workspace", error);
+  });
 });
 
 browser.contextMenus.onClicked.addListener((info, tab) => {
@@ -393,9 +379,7 @@ browser.contextMenus.onClicked.addListener((info, tab) => {
     async openExtensionPage(path) {
       await browser.tabs.create({ url: browser.runtime.getURL(path) });
     },
-    async openSidePanel(tabId) {
-      await sidePanelApi()?.open({ tabId });
-    },
+    openTranslationWorkspace: (text) => openTranslationWorkspace(tab, text),
   }).catch(() => undefined);
 });
 

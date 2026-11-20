@@ -224,7 +224,7 @@ describe("Options", () => {
     fireEvent.change(screen.getByLabelText("PDF 显示模式"), {
       target: { value: "translation" },
     });
-    fireEvent.change(screen.getByLabelText("侧边栏目标语言"), {
+    fireEvent.change(screen.getByLabelText("工作台目标语言"), {
       target: { value: "fr" },
     });
     fireEvent.change(screen.getByLabelText("AI 写作目标语言"), {

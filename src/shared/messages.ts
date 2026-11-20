@@ -216,12 +216,12 @@ export interface AssistantCapabilities {
   streaming: boolean;
 }
 
-export interface OpenSidePanelMessage {
-  type: "openSidePanel";
+export interface OpenTranslationWorkspaceMessage {
+  type: "openTranslationWorkspace";
   tabId: number;
 }
 
-export interface OpenSidePanelResult {
+export interface OpenTranslationWorkspaceResult {
   opened: boolean;
 }
 
@@ -235,11 +235,6 @@ export interface GetPageStateMessage {
 
 export interface GetSelectionTextMessage {
   type: "getSelectionText";
-}
-
-export interface SidePanelSelectionMessage {
-  type: "sidePanelSelection";
-  text: string;
 }
 
 export interface ToggleVideoSubtitlePreTranslationMessage {
@@ -302,11 +297,10 @@ export type Msg =
   | OpenOptionsMessage
   | AssistantRequestMessage
   | GetAssistantCapabilitiesMessage
-  | OpenSidePanelMessage
+  | OpenTranslationWorkspaceMessage
   | OpenAiWritingMessage
   | GetPageStateMessage
   | GetSelectionTextMessage
-  | SidePanelSelectionMessage
   | ToggleVideoSubtitlePreTranslationMessage
   | PageTranslationStateMessage
   | ControllerCommandMessage
@@ -333,7 +327,7 @@ export type BackgroundRequest =
   | OpenOptionsMessage
   | AssistantRequestMessage
   | GetAssistantCapabilitiesMessage
-  | OpenSidePanelMessage
+  | OpenTranslationWorkspaceMessage
   | PageTranslationStateMessage;
 
 /** Acknowledgement for work submitted to a scheduler. */
@@ -382,8 +376,8 @@ export type BackgroundResponse<T extends BackgroundRequest> =
                             ? AssistantResponse
                             : T extends GetAssistantCapabilitiesMessage
                               ? AssistantCapabilities
-                              : T extends OpenSidePanelMessage
-                                ? OpenSidePanelResult
+                              : T extends OpenTranslationWorkspaceMessage
+                                ? OpenTranslationWorkspaceResult
                                 : T extends PageTranslationStateMessage
                                   ? PageTranslationStateAcknowledgement
                                   : never;
