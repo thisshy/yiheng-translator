@@ -1,5 +1,5 @@
 const zhCN = {
-  "read.pickHint": "点击译文中的词或选中短语，可查看备选译法。",
+  "read.pickHint": "请先在译文中选中一个词或短语。",
   "read.clean": "整理断行",
   "read.undo": "撤销整理",
   "read.parallel": "段落对照",
@@ -357,7 +357,7 @@ export type UiLocale = "zh-CN" | "zh-TW" | "ja" | "en";
 export type UiLocaleSetting = UiLocale | "auto";
 
 const en: Record<I18nKey, string> = {
-  "read.pickHint": "Click a translated word or select a phrase for alternatives.",
+  "read.pickHint": "Select a word or phrase in the translation first.",
   "read.clean": "Clean line breaks",
   "read.undo": "Undo cleanup",
   "read.parallel": "Compare paragraphs",
@@ -719,7 +719,7 @@ const en: Record<I18nKey, string> = {
 
 const zhTW: Partial<Record<I18nKey, string>> = {
   ...zhCN,
-  "read.pickHint": "點選譯文中的詞或選取片語，可查看其他譯法。",
+  "read.pickHint": "請先在譯文中選取一個詞或片語。",
   "read.clean": "整理斷行",
   "read.undo": "復原整理",
   "read.parallel": "段落對照",
@@ -992,7 +992,7 @@ const ja: Partial<Record<I18nKey, string>> = {
   "paper.custom": "色を選ぶ",
   "paper.reset": "テーマの背景色に戻す",
   "paper.adjusted": "黒い文字を読みやすくするため背景を明るくしました。",
-  "read.pickHint": "訳文の語をクリックするか、語句を選択して別の訳語を表示します。",
+  "read.pickHint": "訳文で単語や語句を選択してください。",
   "read.clean": "改行を整理",
   "read.undo": "整理を元に戻す",
   "read.parallel": "段落を対照",

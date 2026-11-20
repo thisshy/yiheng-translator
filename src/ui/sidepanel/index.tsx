@@ -183,6 +183,7 @@ export function SidePanel({
   const paletteTrigger = useRef<HTMLButtonElement>(null);
   const [moreOpen, setMoreOpen] = useState(false);
   const sourceRef = useRef<HTMLTextAreaElement>(null);
+  const resultBodyRef = useRef<HTMLDivElement>(null);
   const selectSourceOnEdit = useRef(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const imageRevision = useRef(0);
@@ -1516,7 +1517,7 @@ export function SidePanel({
                 }
               />
             </header>
-            <div class="side-result-body">
+            <div class="side-result-body" ref={resultBodyRef}>
               {matched ? (
                 <div class="side-output side-reading">
                   {matched.pairs.map((p, i) => (
@@ -1526,18 +1527,18 @@ export function SidePanel({
                       class="read-paragraph"
                       data-active={activeParagraph === i}
                       tabIndex={0}
-                      title={t("read.pickHint")}
+                      data-term-paragraph={i}
                       onKeyDown={(e) => {
                         if (e.key !== "Enter" || e.ctrlKey || e.metaKey) return;
                         e.preventDefault();
                         if (matched.pairs.length > 1) focusPair(i, "source");
-                        const picked = pickedTerm(e, i, matched.to);
-                        if (picked) setSelectedTerm(picked);
                       }}
-                      onClick={(e) => {
-                        if (matched.pairs.length > 1) focusPair(i, "source");
-                        const picked = pickedTerm(e, i, matched.to);
-                        if (picked) setSelectedTerm(picked);
+                      onClick={() => {
+                        if (
+                          matched.pairs.length > 1 &&
+                          window.getSelection()?.isCollapsed !== false
+                        )
+                          focusPair(i, "source");
                       }}
                     >
                       <MathText text={p.translation} termOffsets />
@@ -1564,9 +1565,6 @@ export function SidePanel({
                 )}
             </div>
             <footer class="side-card-footer">
-              {matched && !selectedTerm && (
-                <small class="term-hint">{t("read.pickHint")}</small>
-              )}
               {matched &&
                 selectedTerm &&
                 matched.pairs[selectedTerm.paragraph]?.translation.slice(
@@ -1652,6 +1650,27 @@ export function SidePanel({
                 role="group"
                 aria-label={t("side.textTools")}
               >
+                <button
+                  type="button"
+                  class="ui-button ui-button-quiet"
+                  disabled={!matched}
+                  title={t("read.pickHint")}
+                  onMouseDown={(event) => {
+                    if (event.button === 0) event.preventDefault();
+                  }}
+                  onClick={() => {
+                    const pane = resultBodyRef.current;
+                    const term = pane && pickedTerm(pane);
+                    if (!term) {
+                      setNotice(t("read.pickHint"));
+                      return;
+                    }
+                    setNotice(undefined);
+                    setSelectedTerm(term);
+                  }}
+                >
+                  {t("read.terms")}
+                </button>
                 {(["explain", "polish", "summarize"] as const).map((kind) => (
                   <Button
                     key={kind}

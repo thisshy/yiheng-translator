@@ -525,6 +525,10 @@ describe("SidePanel", () => {
     window.getSelection()!.removeAllRanges();
     window.getSelection()!.addRange(range);
     fireEvent.click(span);
+    expect(window.getSelection()?.toString()).toBe("合并");
+    expect(view.container.querySelector(".term-editor")).toBeNull();
+    expect(assistant.complete).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "备选译法" }));
     fireEvent.click(await screen.findByRole("button", { name: "并合" }));
     fireEvent.click(screen.getByRole("button", { name: "加入术语表" }));
     await screen.findByText("已保存到术语表");

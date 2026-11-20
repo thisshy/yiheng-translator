@@ -13,60 +13,35 @@ export interface TermSelection {
   word: string;
 }
 
-export function pickedTerm(
-  event: MouseEvent | KeyboardEvent,
-  paragraph: number,
-  language: LangCode,
-): TermSelection | undefined {
+export function pickedTerm(resultPane: HTMLElement): TermSelection | undefined {
   const selection = window.getSelection();
-  const selectedNode =
-    selection && !selection.isCollapsed && selection.rangeCount
-      ? selection.getRangeAt(0).startContainer
-      : null;
-  const element = selectedNode?.parentElement ?? (event.target as Element);
-  const span = element.closest<HTMLElement>("[data-term-offset]");
-  if (!(event.currentTarget as HTMLElement).contains(span)) return;
-  const node = span?.firstChild;
-  if (!span || !node || node.nodeType !== Node.TEXT_NODE) return;
-  let start: number, end: number;
-  if (selection?.rangeCount && !selection.isCollapsed) {
-    const range = selection.getRangeAt(0);
-    if (range.startContainer !== node || range.endContainer !== node) return;
-    start = range.startOffset;
-    end = range.endOffset;
-  } else {
-    if (!("clientX" in event)) return;
-    const doc = document as Document & {
-      caretRangeFromPoint?(x: number, y: number): Range | null;
-      caretPositionFromPoint?(
-        x: number,
-        y: number,
-      ): { offsetNode: Node; offset: number } | null;
-    };
-    const point = doc.caretPositionFromPoint?.(event.clientX, event.clientY);
-    const range =
-      !point && doc.caretRangeFromPoint?.(event.clientX, event.clientY);
-    if (
-      point
-        ? point.offsetNode !== node
-        : !range || range.startContainer !== node
-    )
-      return;
-    const offset = point ? point.offset : (range as Range).startOffset;
-    const segments = new Intl.Segmenter(
-      language === "auto" ? undefined : language,
-      { granularity: "word" },
-    ).segment(node.textContent ?? "");
-    const segment = segments.containing(offset);
-    if (!segment?.isWordLike) return;
-    start = segment.index;
-    end = start + segment.segment.length;
-  }
-  const raw = (node.textContent ?? "").slice(start, end);
+  if (!selection?.rangeCount || selection.isCollapsed) return;
+  const range = selection.getRangeAt(0);
+  if (range.startContainer !== range.endContainer) return;
+  const span =
+    range.startContainer.parentElement?.closest<HTMLElement>(
+      "[data-term-offset]",
+    );
+  if (
+    !span ||
+    !resultPane.contains(span) ||
+    span.firstChild !== range.startContainer
+  )
+    return;
+  const paragraph = span.closest<HTMLElement>("[data-term-paragraph]");
+  if (!paragraph) return;
+
+  const raw = range.toString();
   const word = raw.trim();
   if (!word || word.length > 160) return;
-  const index = Number(span.dataset.termOffset) + start + raw.indexOf(word);
-  return { paragraph, start: index, end: index + word.length, word };
+  const start =
+    Number(span.dataset.termOffset) + range.startOffset + raw.indexOf(word);
+  return {
+    paragraph: Number(paragraph.dataset.termParagraph),
+    start,
+    end: start + word.length,
+    word,
+  };
 }
 
 export function TermEditor({

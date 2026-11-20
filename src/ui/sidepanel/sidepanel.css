@@ -710,8 +710,7 @@ body {
 .read-paragraph + .read-paragraph {
   margin-top: 1em;
 }
-.read-paragraph[role="button"],
-[data-term-offset] {
+.read-paragraph[role="button"] {
   cursor: pointer;
 }
 .read-paragraph[aria-pressed="true"],
