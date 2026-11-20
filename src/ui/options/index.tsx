@@ -52,6 +52,7 @@ import {
   testServiceConnection,
 } from "../shared/runtime";
 import { ExpandedFeatureCards, LanguageRuleCards } from "./expanded-panels";
+import { GlossaryDrive } from "./glossary-drive";
 import "../shared/styles.css";
 import "./options.css";
 
@@ -1175,6 +1176,7 @@ function GlossaryPanel({ config, onPatch }: PanelProps): preact.JSX.Element {
 
   return (
     <Card>
+      <GlossaryDrive />
       <div class="glossary-header" aria-hidden="true">
         <span>{t("glossary.source")}</span>
         <span>{t("glossary.target")}</span>

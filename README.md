@@ -66,6 +66,8 @@ pnpm build
 
 Chrome 构建产物位于 `dist/`。修改源码并重新构建后，在扩展管理页重新加载。Firefox 和用户脚本可以分别通过 `pnpm build:firefox` 和 `pnpm build:userscript` 构建。
 
+如需通过 Google Drive 同步术语，在 Google Cloud 项目启用 Drive API，为实际安装的扩展 ID 创建 Chrome 扩展类型的 OAuth 客户端。将客户端 ID 写入仓库根目录下 `.env.local` 的 `YIHENG_GOOGLE_DRIVE_CLIENT_ID`，重新运行 `pnpm build`。两台电脑安装后，各自在「设置 → 术语表」点击「连接 Google Drive」，用同一个 Google 账号授权。首次连接会合并本机和云端已有术语。译衡通过 `drive.appdata` 权限同步术语及其适用域名。
+
 端到端测试需要先运行 `pnpm exec playwright install chromium`，然后运行 `pnpm e2e`。
 
 ## 许可证

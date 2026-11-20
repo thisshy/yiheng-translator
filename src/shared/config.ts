@@ -668,6 +668,10 @@ export function glossaryIdentity({ k, v, domain }: GlossaryEntry): string {
   return JSON.stringify([k, v, domain || ""]);
 }
 
+export function isCompleteGlossaryEntry({ k, v }: GlossaryEntry): boolean {
+  return Boolean(k.trim() && v.trim());
+}
+
 let configWrites = Promise.resolve();
 
 /** Serialize writes from settings pages and the background sync worker. */
@@ -684,7 +688,7 @@ export async function withConfigWrite<T>(
   return write;
 }
 
-function mergeGlossaryEdit(
+export function mergeGlossaryEdit(
   current: GlossaryEntry[],
   before: GlossaryEntry[],
   edited: GlossaryEntry[],

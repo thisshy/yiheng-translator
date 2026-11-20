@@ -5,3 +5,4 @@ dist-userscript/
 .vite/
 playwright-report/
 test-results/
+.env.local

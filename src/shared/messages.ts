@@ -1,5 +1,6 @@
 import browser from "webextension-polyfill";
 
+import type { GlossaryDriveProblem } from "./glossary-drive";
 import type { PageCommandId } from "./j-types";
 import type { AssistantRequest } from "./k-assistant";
 import type {
@@ -194,6 +195,11 @@ export interface OpenOptionsMessage {
   type: "openOptions";
 }
 
+export interface SyncDriveGlossaryMessage {
+  type: "syncDriveGlossary";
+  connect: boolean;
+}
+
 export interface OpenOptionsResult {
   opened: boolean;
 }
@@ -295,6 +301,7 @@ export type Msg =
   | ClearCacheMessage
   | ValidateRuleMessage
   | OpenOptionsMessage
+  | SyncDriveGlossaryMessage
   | AssistantRequestMessage
   | GetAssistantCapabilitiesMessage
   | OpenTranslationWorkspaceMessage
@@ -325,6 +332,7 @@ export type BackgroundRequest =
   | ClearCacheMessage
   | ValidateRuleMessage
   | OpenOptionsMessage
+  | SyncDriveGlossaryMessage
   | AssistantRequestMessage
   | GetAssistantCapabilitiesMessage
   | OpenTranslationWorkspaceMessage
@@ -380,7 +388,12 @@ export type BackgroundResponse<T extends BackgroundRequest> =
                                 ? OpenTranslationWorkspaceResult
                                 : T extends PageTranslationStateMessage
                                   ? PageTranslationStateAcknowledgement
-                                  : never;
+                                  : T extends SyncDriveGlossaryMessage
+                                    ? {
+                                        connected: boolean;
+                                        problem?: GlossaryDriveProblem;
+                                      }
+                                    : never;
 
 /** Messages sent directly to a tab's content script. */
 export type TabMessage =

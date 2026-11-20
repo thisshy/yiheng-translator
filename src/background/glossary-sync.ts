@@ -4,18 +4,22 @@ import {
   CONFIG_STORAGE_KEY,
   glossaryIdentity,
   glossarySchema,
+  isCompleteGlossaryEntry,
   migrateConfig,
   withConfigWrite,
 } from "../shared/config";
+import {
+  GLOSSARY_DRIVE_KEY,
+  hasGlossaryDriveAuth,
+} from "../shared/glossary-drive";
 import type { Config, GlossaryEntry } from "../shared/types";
+import { syncDriveGlossary } from "./glossary-drive";
 import { sha256Hex } from "./services/crypto";
 
 const PREFIX = "glossary.v1.";
 const BASELINE_KEY = "glossarySyncBaseline";
 const DEBOUNCE_MS = 1200;
-
-const complete = (entry: GlossaryEntry): boolean =>
-  Boolean(entry.k.trim() && entry.v.trim());
+const DRIVE_ALARM = "glossary-drive-sync";
 
 /** Keep a local glossary for the existing translation and settings entry points. */
 export async function syncGlossary(): Promise<void> {
@@ -23,10 +27,13 @@ export async function syncGlossary(): Promise<void> {
   if (!sync) return;
 
   await withConfigWrite(async () => {
-    const [stored, synced] = await Promise.all([
-      browser.storage.local.get([CONFIG_STORAGE_KEY, BASELINE_KEY]),
-      sync.get(null),
+    const stored = await browser.storage.local.get([
+      CONFIG_STORAGE_KEY,
+      BASELINE_KEY,
+      GLOSSARY_DRIVE_KEY,
     ]);
+    if (stored[GLOSSARY_DRIVE_KEY]) return;
+    const synced = await sync.get(null);
     const config = migrateConfig(stored[CONFIG_STORAGE_KEY]);
     const savedBaseline: unknown = stored[BASELINE_KEY];
     const baseline = new Set(
@@ -37,14 +44,14 @@ export async function syncGlossary(): Promise<void> {
 
     const local = new Map(
       config.glossaries
-        .filter(complete)
+        .filter(isCompleteGlossaryEntry)
         .map((entry) => [glossaryIdentity(entry), entry]),
     );
     const remote = new Map<string, { key: string; entry: GlossaryEntry }>();
     for (const [key, value] of Object.entries(synced)) {
       if (!key.startsWith(PREFIX)) continue;
       const entry = glossarySchema.safeParse(value);
-      if (entry.success && complete(entry.data))
+      if (entry.success && isCompleteGlossaryEntry(entry.data))
         remote.set(glossaryIdentity(entry.data), { key, entry: entry.data });
     }
 
@@ -70,7 +77,9 @@ export async function syncGlossary(): Promise<void> {
     // Keep the current row order and unfinished edits in this browser.
     const remaining = new Map(remote);
     const glossaries = config.glossaries.filter(
-      (entry) => !complete(entry) || remaining.delete(glossaryIdentity(entry)),
+      (entry) =>
+        !isCompleteGlossaryEntry(entry) ||
+        remaining.delete(glossaryIdentity(entry)),
     );
     glossaries.push(...Array.from(remaining.values(), ({ entry }) => entry));
 
@@ -84,17 +93,41 @@ export async function syncGlossary(): Promise<void> {
 }
 
 export function registerGlossarySync(): void {
-  if (!browser.storage.sync) return;
   let timer: ReturnType<typeof setTimeout>;
+  const driveAvailable = hasGlossaryDriveAuth();
+  const ensureDriveAlarm = async () => {
+    if (!(await browser.alarms.get(DRIVE_ALARM)))
+      await browser.alarms.create(DRIVE_ALARM, { periodInMinutes: 1 });
+  };
   const schedule = () => {
     clearTimeout(timer);
     timer = setTimeout(() => {
-      void syncGlossary().catch((error: unknown) => {
-        console.warn("[imt] Could not sync the glossary", error);
-      });
+      void syncDriveGlossary()
+        .then(({ connected }) => {
+          if (!connected) return syncGlossary();
+        })
+        .catch((error: unknown) => {
+          console.warn("[imt] Could not sync the glossary", error);
+        });
     }, DEBOUNCE_MS);
   };
+  if (driveAvailable) {
+    browser.alarms.onAlarm.addListener(({ name }) => {
+      if (name === DRIVE_ALARM) schedule();
+    });
+    void browser.storage.local.get(GLOSSARY_DRIVE_KEY).then((stored) => {
+      if (stored[GLOSSARY_DRIVE_KEY]) return ensureDriveAlarm();
+    });
+  }
   browser.storage.onChanged.addListener((changes, area) => {
+    const drive = changes[GLOSSARY_DRIVE_KEY];
+    if (
+      driveAvailable &&
+      area === "local" &&
+      drive?.newValue &&
+      !drive.oldValue
+    )
+      void ensureDriveAlarm();
     if (
       area === "sync" &&
       Object.keys(changes).some((key) => key.startsWith(PREFIX))

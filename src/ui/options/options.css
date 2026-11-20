@@ -318,6 +318,23 @@ body {
   font-size: 11px;
 }
 
+.glossary-drive {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-bottom: 16px;
+}
+
+.glossary-drive .ui-status {
+  margin: 4px 0 0;
+}
+
+.glossary-drive .ui-status:empty {
+  margin: 0;
+}
+
 .glossary-list {
   display: grid;
   gap: 8px;

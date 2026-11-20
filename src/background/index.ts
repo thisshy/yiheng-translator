@@ -26,6 +26,7 @@ import {
 } from "./badge";
 import { routeExtensionCommand } from "./commands";
 import { createContextMenus, routeContextMenuClick } from "./context-menus";
+import { syncDriveGlossary } from "./glossary-drive";
 import { registerGlossarySync } from "./glossary-sync";
 import { matchRule, validateRule } from "./rules/match";
 import { getRemoteRules, registerRemoteRules } from "./rules/remote-rules";
@@ -176,6 +177,8 @@ browser.runtime.onMessage.addListener(
         return loadConfig();
       case "setConfig":
         return saveConfig(request.patch);
+      case "syncDriveGlossary":
+        return syncDriveGlossary(request.connect);
       case "translate":
         runTranslation(request);
         return Promise.resolve({ accepted: true });
