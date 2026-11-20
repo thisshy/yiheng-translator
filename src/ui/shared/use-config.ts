@@ -65,7 +65,7 @@ export function useConfig(): ConfigState {
 
       saveQueue.current = saveQueue.current.then(async () => {
         try {
-          const saved = await saveConfig(patch);
+          const saved = await saveConfig(patch, current.glossaries);
           if (configRef.current === optimistic) applyConfig(saved);
           resolveResult(saved);
         } catch (cause) {

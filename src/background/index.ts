@@ -1,13 +1,7 @@
 import browser from "webextension-polyfill";
 
 import { init as initPdfInterception } from "../pdf/intercept";
-import {
-  CONFIG_STORAGE_KEY,
-  DEFAULT_CONFIG,
-  loadConfig,
-  onConfigChange,
-  saveConfig,
-} from "../shared/config";
+import { loadConfig, onConfigChange, saveConfig } from "../shared/config";
 import {
   ASSISTANT_PORT_NAME,
   type AssistantRequest,
@@ -32,6 +26,7 @@ import {
 } from "./badge";
 import { routeExtensionCommand } from "./commands";
 import { createContextMenus, routeContextMenuClick } from "./context-menus";
+import { registerGlossarySync } from "./glossary-sync";
 import { matchRule, validateRule } from "./rules/match";
 import { getRemoteRules, registerRemoteRules } from "./rules/remote-rules";
 import { cancel, cancelTab, translate } from "./scheduler";
@@ -68,6 +63,7 @@ initTranslationServices();
 registerRemoteRules();
 initPdfInterception();
 registerChatgptOauthPolling();
+registerGlossarySync();
 const pageBadges = new PageBadgeController(actionApi());
 
 async function configuredRule(url: string): Promise<Rule> {
@@ -385,15 +381,7 @@ browser.contextMenus.onClicked.addListener((info, tab) => {
 
 browser.runtime.onInstalled.addListener(() => {
   void (async () => {
-    const stored = await browser.storage.local.get(CONFIG_STORAGE_KEY);
-    if (stored[CONFIG_STORAGE_KEY] === undefined) {
-      await browser.storage.local.set({ [CONFIG_STORAGE_KEY]: DEFAULT_CONFIG });
-    } else {
-      await browser.storage.local.set({
-        [CONFIG_STORAGE_KEY]: await loadConfig(),
-      });
-    }
-    const config = await loadConfig();
+    const config = await saveConfig({});
     await cleanupTranslationCache(config.cache.maxAgeDays);
     await createContextMenus(
       browser.contextMenus as unknown as Parameters<

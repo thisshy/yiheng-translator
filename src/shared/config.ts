@@ -8,7 +8,13 @@ import {
 } from "./k-types";
 import { LANGUAGE_CODES } from "./lang";
 import { DEFAULT_SUBTITLE_CONFIG, type SubtitleConfig } from "./subtitle-types";
-import type { Config, ConfigPatch, Rule, ServiceConfig } from "./types";
+import type {
+  Config,
+  ConfigPatch,
+  GlossaryEntry,
+  Rule,
+  ServiceConfig,
+} from "./types";
 
 /** Current persisted configuration format. */
 export const CONFIG_VERSION = 5;
@@ -17,7 +23,7 @@ export const CONFIG_VERSION = 5;
 export const CONFIG_STORAGE_KEY = "config";
 
 const langCodeSchema = z.enum(LANGUAGE_CODES);
-const glossarySchema = z.object({
+export const glossarySchema = z.object({
   k: z.string(),
   v: z.string(),
   domain: z.string().optional(),
@@ -605,7 +611,10 @@ registerConfigMigration(3, (config) => ({
 registerConfigMigration(4, (config) => {
   const services = isRecord(config.services) ? config.services : {};
   const chatgpt = services.chatgpt;
-  if (!isRecord(chatgpt) || (chatgpt.model && chatgpt.model !== "gpt-6.1-sol")) {
+  if (
+    !isRecord(chatgpt) ||
+    (chatgpt.model && chatgpt.model !== "gpt-6.1-sol")
+  ) {
     return { ...config, version: 5 };
   }
   return {
@@ -655,16 +664,67 @@ export async function loadConfig(): Promise<Config> {
   return migrateConfig(stored[CONFIG_STORAGE_KEY]);
 }
 
+export function glossaryIdentity({ k, v, domain }: GlossaryEntry): string {
+  return JSON.stringify([k, v, domain || ""]);
+}
+
+let configWrites = Promise.resolve();
+
+/** Serialize writes from settings pages and the background sync worker. */
+export async function withConfigWrite<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  const locks = globalThis.navigator?.locks;
+  if (locks) return await locks.request(CONFIG_STORAGE_KEY, operation);
+  const write = configWrites.then(operation);
+  configWrites = write.then(
+    () => undefined,
+    () => undefined,
+  );
+  return write;
+}
+
+function mergeGlossaryEdit(
+  current: GlossaryEntry[],
+  before: GlossaryEntry[],
+  edited: GlossaryEntry[],
+): GlossaryEntry[] {
+  const previousKeys = new Set(before.map(glossaryIdentity));
+  const currentKeys = new Set(current.map(glossaryIdentity));
+  const editedKeys = new Set(edited.map(glossaryIdentity));
+  return [
+    ...edited.filter((entry) => {
+      const key = glossaryIdentity(entry);
+      return !previousKeys.has(key) || currentKeys.has(key);
+    }),
+    ...current.filter((entry) => {
+      const key = glossaryIdentity(entry);
+      return !previousKeys.has(key) && !editedKeys.has(key);
+    }),
+  ];
+}
+
 /** Merge and persist a validated top-level configuration patch. */
-export async function saveConfig(patch: ConfigPatch): Promise<Config> {
-  const current = await loadConfig();
-  const next = configSchema.parse({
-    ...current,
-    ...patch,
-    version: CONFIG_VERSION,
+export async function saveConfig(
+  patch: ConfigPatch,
+  glossaryBeforeEdit?: GlossaryEntry[],
+): Promise<Config> {
+  return withConfigWrite(async () => {
+    const current = await loadConfig();
+    const next = configSchema.parse({
+      ...current,
+      ...patch,
+      version: CONFIG_VERSION,
+    });
+    if (patch.glossaries && glossaryBeforeEdit)
+      next.glossaries = mergeGlossaryEdit(
+        current.glossaries,
+        glossaryBeforeEdit,
+        next.glossaries,
+      );
+    await browser.storage.local.set({ [CONFIG_STORAGE_KEY]: next });
+    return next;
   });
-  await browser.storage.local.set({ [CONFIG_STORAGE_KEY]: next });
-  return next;
 }
 
 /** Subscribe to validated configuration changes; returns an unsubscribe function. */
