@@ -9,7 +9,7 @@ export interface AssistantChatMessage {
 }
 
 export interface AssistantRequest {
-  kind: "translate" | "chat" | "writing" | "dictionary";
+  kind: "translate" | "chat" | "writing" | "dictionary" | "alignment";
   text: string;
   service: string;
   from?: LangCode;

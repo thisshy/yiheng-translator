@@ -371,17 +371,16 @@ export class ChatgptOauthService extends BaseService {
           : []),
       ] as InputContent[],
     }));
+    const effort =
+      request.kind === "alignment"
+        ? "low"
+        : request.kind === "translate"
+          ? this.reasoningEffort
+          : this.reasoningEffortAssistant;
     return this.streamResponse(
       {
         model,
-        reasoning: {
-          effort: clampEffort(
-            request.kind === "translate"
-              ? this.reasoningEffort
-              : this.reasoningEffortAssistant,
-            model,
-          ),
-        },
+        reasoning: { effort: clampEffort(effort, model) },
         instructions: assistantInstruction(request),
         input,
         store: false,

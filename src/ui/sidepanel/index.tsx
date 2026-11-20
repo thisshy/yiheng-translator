@@ -395,7 +395,9 @@ export function SidePanel({
     );
   setUiLocaleOverride(config.uiLanguage);
   const service =
-    activeTab === "page" ? config.service : (workspaceService ?? config.service);
+    activeTab === "page"
+      ? config.service
+      : (workspaceService ?? config.service);
   const targetLanguage =
     config.sidePanel.targetLanguage ?? config.targetLanguage;
   const language =
@@ -1295,33 +1297,45 @@ export function SidePanel({
                   termOffsets
                 />
               )}
-              <textarea
-                id="side-source"
-                ref={sourceRef}
-                class="side-reading"
+              <div
+                class="side-source-editor"
                 hidden={sourcePreview || pairedView}
-                aria-label={t("side.sourceText")}
-                placeholder={
-                  attachment ? t("side.imageOriginalPending") : t("side.noText")
-                }
-                value={attachment ? imageOriginal : source}
-                readOnly={working}
-                onInput={(event) => {
-                  edited.current = true;
-                  setSourceEditing(true);
-                  if (attachment) setImageOriginal(event.currentTarget.value);
-                  else setSource(event.currentTarget.value);
-                }}
-                onKeyDown={(event) => {
-                  if (
-                    event.key === "Enter" &&
-                    (event.ctrlKey || event.metaKey)
-                  ) {
-                    event.preventDefault();
-                    void execute();
+              >
+                <div
+                  class="side-source-mirror side-reading"
+                  aria-hidden="true"
+                  hidden
+                />
+                <textarea
+                  id="side-source"
+                  ref={sourceRef}
+                  class="side-reading"
+                  hidden={sourcePreview || pairedView}
+                  aria-label={t("side.sourceText")}
+                  placeholder={
+                    attachment
+                      ? t("side.imageOriginalPending")
+                      : t("side.noText")
                   }
-                }}
-              />
+                  value={attachment ? imageOriginal : source}
+                  readOnly={working}
+                  onInput={(event) => {
+                    edited.current = true;
+                    setSourceEditing(true);
+                    if (attachment) setImageOriginal(event.currentTarget.value);
+                    else setSource(event.currentTarget.value);
+                  }}
+                  onKeyDown={(event) => {
+                    if (
+                      event.key === "Enter" &&
+                      (event.ctrlKey || event.metaKey)
+                    ) {
+                      event.preventDefault();
+                      void execute();
+                    }
+                  }}
+                />
+              </div>
               {attachment && (
                 <details class="side-image-instructions">
                   <summary>{t("side.imageNoteLabel")}</summary>
